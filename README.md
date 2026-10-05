@@ -1,88 +1,73 @@
-# Meshia Mesh Simplification
+# Meshia Mesh Simplification (Synthos Edition)
 
+A high-performance, Burst-accelerated mesh decimation library for Unity and VRChat. 
 
-- [English](#english)
-- [日本語](#日本語)
+This repository is a customized edition of [Ram.Type-0's Meshia](https://github.com/RamType0/Meshia.MeshSimplification) (under the MIT License), tailored specifically for **VRChat World / Scene optimization**, batch environment processing, and standalone usage with tools like **Synthos Scene Optimizer**.
 
-[Documents](https://ramtype0.github.io/Meshia.MeshSimplification/)
+---
 
-## English
-Mesh simplification tool/library for Unity, VRChat.
+## ⚡ What Was Changed?
 
-Based on Unity Job System, and Burst. 
-Provides fast, asynchronous mesh simplification.
+1. **Independent UV Barycentric Interpolation (`UseBarycentricCoordinateInterpolationForUV`)**
+   - **In Stock Meshia:** Barycentric interpolation was all-or-nothing—forcing surface normals, tangents, and UVs to all interpolate together, which frequently distorted vertex normals and lighting on flat or hard-edged surfaces.
+   - **In Synthos Edition:** Normals and tangents can use standard linear interpolation while texture coordinates (UV0–UV7) and vertex colors independently use barycentric interpolation. This preserves lightmaps, trim sheets, and texture mappings with zero shading distortion.
 
-Can be executed at runtime or in the editor.
+2. **Watertight Edge Preservation (`PreserveBorderEdges = true`)**
+   - **In Stock Meshia:** `PreserveBorderEdges` defaulted to `false`, causing holes and seam splits on open meshes and modular building pieces.
+   - **In Synthos Edition:** `PreserveBorderEdges` defaults to `true` to keep environmental and scene geometry watertight.
 
-### Installation
+3. **Batch Scene Processing Support**
+   - Optimized for multi-mesh scene decimation jobs via `MeshSimplifier.SimplifyBatch()` without requiring interactive avatar inspector wrappers.
 
-### VPM
+---
 
-Add [my VPM repository](https://ramtype0.github.io/VpmRepository/) to VCC, then add Meshia Mesh Simplification package to your projects.
+## 🚫 What Is No Longer Needed?
 
+- **NDMF (Non-Destructive Modular Framework) is NO LONGER required:** The original package was hard-coupled to the avatar-only NDMF pipeline. All NDMF dependencies have been cleanly removed so the tool can run standalone on scenes, worlds, or standalone C# pipelines.
+- **`com.anatawa12.custom-localization-for-editor-extension` is NO LONGER required:** Stripped unnecessary third-party localization packages.
 
-### How to use
+---
 
-#### NDMF integration
+## 📦 Installation via VPM (VRChat Creator Companion)
 
-Attach `MeshiaMeshSimplifier` to your models.
+Add the Synthos package repository to VCC / ALCOM:
+```
+https://grimreaper35487.github.io/Synthos-VRC-Packages/index.json
+```
+Then add **Meshia Mesh Simplification (Synthos Edition)** to your project, or install **Synthos Scene Optimizer** (which will automatically pull this in as a dependency).
 
-You can preview the result in EditMode.
+---
 
-
-#### Use from C#
+## 💻 C# Usage
 
 ```csharp
-
 using Meshia.MeshSimplification;
+using System.Collections.Generic;
+using UnityEngine;
 
-Mesh simplifiedMesh = new();
+// 1. Configure options (PreserveBorderEdges is true by default)
+var options = MeshSimplifierOptions.Default;
+options.UseBarycentricCoordinateInterpolationForUV = true; // High-accuracy UV preservation
 
-// Asynchronous API
+// 2. Set target reduction
+var target = new MeshSimplificationTarget
+{
+    Kind = MeshSimplificationTargetKind.RelativeVertexCount,
+    Value = 0.5f // Reduce by 50%
+};
 
-await MeshSimplifier.SimplifyAsync(originalMesh, target, options, simplifiedMesh);
+// 3. Batch Simplify (Burst accelerated)
+var batch = new List<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options)>
+{
+    (myMesh, target, options)
+};
 
-// Synchronous API
-
-MeshSimplifier.Simplify(originalMesh, target, options, simplifiedMesh);
-
+MeshSimplifier.SimplifyBatch(batch);
 ```
 
-## 日本語
+---
 
-Unity、VRChat向けのメッシュ軽量化ツールです。
-Unity Job Systemで動作するため、Burstと合わせて高速、かつ非同期で処理ができるのが特徴です。
-ランタイム、エディターの双方で動作します。
+## 📜 Credits & License
 
-### インストール
-
-### VPM
-
-[VPM repository](https://ramtype0.github.io/VpmRepository/)をVCCに追加してから、Manage Project > Manage PackagesからMeshia Mesh Simplificationをプロジェクトに追加してください。
-
-### 使い方
-
-#### NDMF統合
-
-NDMFがプロジェクトにインポートされている場合、`MeshiaMeshSimplifier`が使えます。
-エディターで軽量化結果をプレビューしながらパラメーターの調整ができます。
-
-#### C#から呼び出す
-
-```csharp
-
-using Meshia.MeshSimplification;
-
-Mesh simplifiedMesh = new();
-
-// 非同期API
-
-await MeshSimplifier.SimplifyAsync(originalMesh, target, options, simplifiedMesh);
-
-// 同期API
-
-MeshSimplifier.Simplify(originalMesh, target, options, simplifiedMesh);
-
-```
-
-
+* **Original Library:** Developed by [Ram.Type-0](https://github.com/RamType0/Meshia.MeshSimplification) under the [MIT License](LICENSE.md).
+* **Modifications & World Optimization:** Maintained by [Synthos](https://github.com/GRIMREAPER35487).
