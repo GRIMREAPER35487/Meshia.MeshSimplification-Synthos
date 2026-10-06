@@ -1,18 +1,15 @@
-#nullable enable
-
-#if ENABLE_MODULAR_AVATAR
+#if ENABLE_VRCFURY
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using nadena.dev.modular_avatar.core;
 using UnityEngine.Pool;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections;
 using Unity.Mathematics;
 
-namespace Meshia.MeshSimplification.Ndmf
+namespace Meshia.MeshSimplification
 {
     [AddComponentMenu("Meshia Mesh Simplification/Meshia Cascading Avatar Mesh Simplifier")]
     public class MeshiaCascadingAvatarMeshSimplifier : MonoBehaviour
@@ -23,19 +20,18 @@ namespace Meshia.MeshSimplification.Ndmf
         public List<MeshiaCascadingAvatarMeshSimplifierRendererEntry> Entries = new();
         public int TargetTriangleCount = 70000;
         public bool AutoAdjustEnabled = true;
+        public bool AccountForBase = false;
         
         public void RefreshEntries()
         {
             using (ListPool<Renderer>.Get(out var ownedRenderers))
             {
                 GetOwnedRenderers(ownedRenderers);
-                var currentEntries = Entries.Select(t => t.GetTargetRenderer(this));
+                var currentEntries = Entries.Select(t => t.TargetRenderer);
                 var addedEntries = ownedRenderers.Except(currentEntries).Where(MeshiaCascadingAvatarMeshSimplifierRendererEntry.IsValidTarget).Select(renderer => new MeshiaCascadingAvatarMeshSimplifierRendererEntry(renderer!)).ToArray();
 
                 Entries.AddRange(addedEntries);
             }
-
-            
         }
 
         private void GetOwnedRenderers(List<Renderer> ownedRenderers)
@@ -60,7 +56,6 @@ namespace Meshia.MeshSimplification.Ndmf
                             throw new InvalidOperationException($"Multiple {nameof(MeshiaCascadingAvatarMeshSimplifier)} is attached to direct children of GameObject. This is not allowed.");
                         }
                         otherScopeOrigins.Add(otherScopeOrigin);
-
                     }
                 }
 
@@ -108,7 +103,6 @@ namespace Meshia.MeshSimplification.Ndmf
                                     {
                                         currentTransform = currentTransform.parent;
                                     }
-
                                 }
                                 return true;
                             }
@@ -117,20 +111,11 @@ namespace Meshia.MeshSimplification.Ndmf
                     ownedRenderers.AddRange(childRenderers);
                 }
             }
-
-            
         }
 
-        public void ResolveReferences()
-        {
-            foreach (var target in Entries)
-            {
-                target.ResolveReference(this);
-            }
-        }
         public static BitArray? GetPreserveBorderEdgesBoneIndices(GameObject avatarRoot, MeshiaCascadingAvatarMeshSimplifier avatarMeshSimplifier, MeshiaCascadingAvatarMeshSimplifierRendererEntry entry)
         {
-            if (avatarRoot.TryGetComponent(out Animator avatarAnimator) && entry.GetTargetRenderer(avatarMeshSimplifier) is SkinnedMeshRenderer skinnedMeshRenderer)
+            if (avatarRoot.TryGetComponent(out Animator avatarAnimator) && entry.TargetRenderer is SkinnedMeshRenderer skinnedMeshRenderer)
             {
                 var bones = skinnedMeshRenderer.bones;
                 var preserveBorderEdgeBoneIndices = new BitArray(bones.Length);
@@ -154,15 +139,13 @@ namespace Meshia.MeshSimplification.Ndmf
             {
                 return null;
             }
-
-
         }
     }
 
     [Serializable]
     public record MeshiaCascadingAvatarMeshSimplifierRendererEntry
     {
-        public AvatarObjectReference RendererObjectReference;
+        public Renderer? TargetRenderer;
         public int TargetTriangleCount;
         public MeshSimplifierOptions Options = MeshSimplifierOptions.Default;
         public ulong PreserveBorderEdgesBones =
@@ -210,8 +193,7 @@ namespace Meshia.MeshSimplification.Ndmf
         }
         public MeshiaCascadingAvatarMeshSimplifierRendererEntry(Renderer renderer)
         {
-            RendererObjectReference = new AvatarObjectReference();
-            RendererObjectReference.Set(renderer.gameObject);
+            TargetRenderer = renderer;
             TargetTriangleCount = RendererUtility.GetMesh(renderer)?.GetTriangleCount() ?? 0;
         }
 
@@ -225,14 +207,7 @@ namespace Meshia.MeshSimplification.Ndmf
             return true;
         }
 
-        internal Renderer? GetTargetRenderer(Component container)
-        {
-            var obj = RendererObjectReference.Get(container);
-            if (obj == null) return null;
-            return obj.TryGetComponent<Renderer>(out var renderer) && renderer is (MeshRenderer or SkinnedMeshRenderer) ? renderer : null;
-        }
-
-        internal bool IsValid(MeshiaCascadingAvatarMeshSimplifier container) => IsValidTarget(GetTargetRenderer(container));
+        internal bool IsValid(MeshiaCascadingAvatarMeshSimplifier container) => IsValidTarget(TargetRenderer);
 
         internal static bool IsEditorOnlyInHierarchy(GameObject gameObject)
         {
@@ -248,13 +223,6 @@ namespace Meshia.MeshSimplification.Ndmf
             }
             return false;
         }
-
-        internal void ResolveReference(Component container)
-        {
-            RendererObjectReference.Get(container);
-        }
     }
-
 }
-
 #endif

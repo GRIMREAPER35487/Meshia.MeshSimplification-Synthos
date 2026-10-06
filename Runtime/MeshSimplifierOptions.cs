@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System;
 using UnityEngine;
 using Unity.Collections;
@@ -12,9 +12,10 @@ namespace Meshia.MeshSimplification
     {
         public static MeshSimplifierOptions Default => new()
         {
-            PreserveBorderEdges = false,
+            PreserveBorderEdges = true,
             PreserveSurfaceCurvature = false,
             UseBarycentricCoordinateInterpolation = false,
+            UseBarycentricCoordinateInterpolationForUV = false,
             MinNormalDot = 0.2f,
             EnableSmartLink = true,
             VertexLinkDistance = 0.0001f,
@@ -34,6 +35,7 @@ namespace Meshia.MeshSimplification
         /// </summary>
         [Tooltip("If you find that the texture is distorted, try toggling this option.")]
         public bool UseBarycentricCoordinateInterpolation;
+        public bool UseBarycentricCoordinateInterpolationForUV;
         /// <summary>
         /// If this option is enabled, vertices that are not originally connected but are close to each other will be included in the first merge candidates. <br/>
         /// Increases the initialization cost.
@@ -68,6 +70,7 @@ namespace Meshia.MeshSimplification
             return PreserveBorderEdges == other.PreserveBorderEdges &&
                    PreserveSurfaceCurvature == other.PreserveSurfaceCurvature &&
                    UseBarycentricCoordinateInterpolation == other.UseBarycentricCoordinateInterpolation &&
+                   UseBarycentricCoordinateInterpolationForUV == other.UseBarycentricCoordinateInterpolationForUV &&
                    EnableSmartLink == other.EnableSmartLink &&
                    MinNormalDot == other.MinNormalDot &&
                    VertexLinkDistance == other.VertexLinkDistance &&

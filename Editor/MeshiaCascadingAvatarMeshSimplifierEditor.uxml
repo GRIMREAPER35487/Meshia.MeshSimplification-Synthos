@@ -8,6 +8,7 @@
         <ui:GroupBox style="flex-direction: row;">
             <ui:Button text="Adjust" parse-escape-sequences="true" display-tooltip-when-elided="true" enable-rich-text="false" name="AdjustButton" />
             <ui:Toggle label="Enable Auto Adjust" binding-path="AutoAdjustEnabled" name="AutoAdjustEnabledToggle" />
+            <ui:Toggle label="Account for Base" binding-path="AccountForBase" name="AccountForBaseToggle" tooltip="Calculates the triangle count of all other renderers on the avatar and subtracts it from your target count to find the remaining budget for these clothes." />
         </ui:GroupBox>
         <ui:GroupBox style="flex-direction: row; justify-content: space-between; display: flex;">
             <ui:IMGUIContainer name="TriangleCountLabel" />
@@ -17,6 +18,5 @@
             </ui:GroupBox>
         </ui:GroupBox>
         <ui:ListView selection-type="None" name="EntriesListView" show-bound-collection-size="false" virtualization-method="DynamicHeight" binding-path="Entries" />
-        <ui:Toggle label="Enable NDMF Preview" name="NdmfPreviewToggle" />
     </ui:VisualElement>
 </ui:UXML>

@@ -5,15 +5,28 @@
         "Unity.Burst",
         "Unity.Mathematics",
         "Unity.Collections",
-        "com.anatawa12.custom-localization-for-editor-extension.runtime"
+        "VRC.SDKBase"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "VRCSDKBase.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.vrcfury.vrcfury",
+            "expression": "",
+            "define": "ENABLE_VRCFURY"
+        },
+        {
+            "name": "com.vrchat.base",
+            "expression": "",
+            "define": "ENABLE_VRCHAT_BASE"
+        }
+    ],
     "noEngineReferences": false
 }
