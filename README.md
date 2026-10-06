@@ -6,7 +6,7 @@ This repository is a customized edition of [Ram.Type-0's Meshia](https://github.
 
 ---
 
-## ⚡ What Was Changed?
+## What Was Changed?
 
 1. **Works on Avatars Without NDMF & Better VRCFury Support**
    - **In Stock Meshia:** You could only use it on avatars through NDMF (*Non-Destructive Modular Framework*), requiring multiple extra dependencies and forcing avatars through the NDMF build lifecycle.
@@ -25,14 +25,14 @@ This repository is a customized edition of [Ram.Type-0's Meshia](https://github.
 
 ---
 
-## 🚫 What Is No Longer Needed?
+## What Is No Longer Needed?
 
 - **NDMF (Non-Destructive Modular Framework) is NO LONGER required:** You do not need NDMF installed to optimize your avatars or worlds. If you use **VRCFury**, it hooks directly into the build pipeline seamlessly without NDMF overhead.
 - **`com.anatawa12.custom-localization-for-editor-extension` is NO LONGER required:** Stripped unnecessary third-party localization packages.
 
 ---
 
-## 📦 Installation via VPM (VRChat Creator Companion)
+## Installation via VPM (VRChat Creator Companion)
 
 Add the Synthos package repository to VCC / ALCOM:
 ```
@@ -42,7 +42,7 @@ Then add **Meshia Mesh Simplification (Synthos Edition)** to your project, or in
 
 ---
 
-## 💻 C# Usage
+## C# Usage
 
 ```csharp
 using Meshia.MeshSimplification;
@@ -71,7 +71,7 @@ MeshSimplifier.SimplifyBatch(batch);
 
 ---
 
-## 📜 Credits & License
+## Credits & License
 
 * **Original Library:** Developed by [Ram.Type-0](https://github.com/RamType0/Meshia.MeshSimplification) under the [MIT License](LICENSE.md).
 * **Modifications & World Optimization:** Maintained by [Synthos](https://github.com/GRIMREAPER35487).
