@@ -1,11 +1,10 @@
 #nullable enable
-using CustomLocalization4EditorExtension;
 using Meshia.MeshSimplification;
-using Meshia.MeshSimplification.Editor.Localization;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+
 namespace Meshia.MeshSimplification.Editor
 {
     [CustomPropertyDrawer(typeof(MeshSimplifierOptions))]
@@ -20,41 +19,34 @@ namespace Meshia.MeshSimplification.Editor
             root.BindProperty(property);
 
             var languagePicker = root.Q<DropdownField>("LanguagePicker");
+            if (languagePicker != null)
+            {
+                languagePicker.style.display = DisplayStyle.None;
+            }
 
             var enableSmartLinkToggle = root.Q<Toggle>("EnableSmartLinkToggle");
             var smartLinkOptionsGroup = root.Q<GroupBox>("SmartLinkOptionsGroup");
 
             var resetOptionsButton = root.Q<Button>("ResetOptionsButton");
 
-            LocalizationProvider.LocalizeBindedElements<MeshSimplifierOptions>(root);
-            smartLinkOptionsGroup.text = LocalizationProvider.Localization.Tr("Meshia.MeshSimplification.MeshSimplifierOptions.SmartLinkOptions");
-
-            LocalizationProvider.Localization.MountLanguagePicker(languagePicker);
-
-            languagePicker.RegisterValueChangedCallback(evt =>
+            if (enableSmartLinkToggle != null && smartLinkOptionsGroup != null)
             {
-                LocalizationProvider.LocalizeBindedElements<MeshSimplifierOptions>(root);
-                smartLinkOptionsGroup.text = LocalizationProvider.Localization.Tr("Meshia.MeshSimplification.MeshSimplifierOptions.SmartLinkOptions");
-            });
+                enableSmartLinkToggle.RegisterValueChangedCallback(changeEvent =>
+                {
+                    smartLinkOptionsGroup.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+                });
+            }
 
-            enableSmartLinkToggle.RegisterValueChangedCallback(changeEvent =>
+            if (resetOptionsButton != null)
             {
-                smartLinkOptionsGroup.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
-
-            });
-
-
-            resetOptionsButton.clicked += () =>
-            {
-                property.boxedValue = MeshSimplifierOptions.Default;
-                property.serializedObject.ApplyModifiedProperties();
-            };
-
-            
-
+                resetOptionsButton.clicked += () =>
+                {
+                    property.boxedValue = MeshSimplifierOptions.Default;
+                    property.serializedObject.ApplyModifiedProperties();
+                };
+            }
 
             return root;
         }
     }
-
 }

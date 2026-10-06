@@ -1,26 +1,24 @@
 {
-  "name": "com.ramtype0.meshia.mesh-simplification",
-  "displayName": "Meshia Mesh Simplification",
+  "name": "com.synthos.meshia",
+  "displayName": "Meshia Mesh Simplification (Synthos Edition)",
   "version": "3.2.0",
   "unity": "2022.3",
-  "description": "Burst accelerated mesh simplification.",
-  "vrchatVersion": "2022.1.1",
+  "description": "Burst-accelerated mesh simplification. Fork of RamType0's Meshia decoupled from NDMF for World/Scene optimization, VRCFury integration, and patched with independent UV barycentric interpolation.",
   "author": {
-    "name": "Ram.Type-0",
-    "url": "https://github.com/RamType0"
+    "name": "Ram.Type-0 (Modified by Synthos)",
+    "url": "https://github.com/RamType0/Meshia.MeshSimplification"
   },
   "keywords": [
     "mesh",
     "optimization",
-    "ndmf",
-    "vrchat"
+    "vrchat",
+    "burst",
+    "world",
+    "vrcfury"
   ],
   "dependencies": {
     "com.unity.burst": "1.8.21",
     "com.unity.collections": "2.5.7",
     "com.unity.mathematics": "1.3.2"
-  },
-  "vpmDependencies": {
-    "com.anatawa12.custom-localization-for-editor-extension": "^1.2.1"
   }
 }

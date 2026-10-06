@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
-    <Style src="project://database/Packages/com.ramtype0.meshia.mesh-simplification/Ndmf/Editor/MeshiaCascadingAvatarMeshSimplifierRendererEntryEditor.uss?fileID=7433441132597879392&amp;guid=1e71cbaead4b73f438e66638a2c95bdf&amp;type=3#MeshiaCascadingAvatarMeshSimplifierRendererEntryEditor" />
+    <Style src="MeshiaCascadingAvatarMeshSimplifierRendererEntryEditor.uss" />
     <ui:VisualElement name="VisualElement" style="flex-grow: 1; flex-direction: row;">
         <ui:Toggle name="EnabledToggle" binding-path="Enabled" />
         <uie:ObjectField name="TargetObjectField" class="editor-only" style="width: 100px;" />

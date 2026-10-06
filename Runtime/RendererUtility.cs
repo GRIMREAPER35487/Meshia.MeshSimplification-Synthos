@@ -3,7 +3,7 @@
 using System;
 using UnityEngine;
 
-namespace Meshia.MeshSimplification.Ndmf
+namespace Meshia.MeshSimplification
 {
     public class RendererUtility
     {

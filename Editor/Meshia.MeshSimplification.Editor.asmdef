@@ -3,7 +3,9 @@
     "rootNamespace": "Meshia.MeshSimplification.Editor",
     "references": [
         "GUID:2badc7067c4f2f74ebf5e33b79399358",
-        "GUID:295ffbe0b63504ae3a7879cf089501ba"
+        "GUID:295ffbe0b63504ae3a7879cf089501ba",
+        "VRC.SDKBase",
+        "VRC.SDKBase.Editor"
     ],
     "includePlatforms": [
         "Editor"
@@ -11,9 +13,23 @@
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
-    "precompiledReferences": [],
+    "precompiledReferences": [
+        "VRCSDKBase.dll",
+        "VRCSDKBase-Editor.dll"
+    ],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.vrcfury.vrcfury",
+            "expression": "",
+            "define": "ENABLE_VRCFURY"
+        },
+        {
+            "name": "com.vrchat.base",
+            "expression": "",
+            "define": "ENABLE_VRCHAT_BASE"
+        }
+    ],
     "noEngineReferences": false
 }

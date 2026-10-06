@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Unity.Burst;
 using Unity.Burst.CompilerServices;
 using Unity.Collections;
@@ -507,7 +507,7 @@ namespace Meshia.MeshSimplification
         {
             using (ProfilerMarkers.MergeVertexAttributeData.Auto())
             {
-                if (Options.UseBarycentricCoordinateInterpolation)
+                if (Options.UseBarycentricCoordinateInterpolation || Options.UseBarycentricCoordinateInterpolationForUV)
                 {
 
                     foreach (var vertexAContainingTriangleIndex in VertexContainingTriangles.GetValuesForKey(vertexA))
@@ -528,23 +528,47 @@ namespace Meshia.MeshSimplification
 
 
                             VertexPositionBuffer[vertexA] = mergePosition;
-                            MergeNormalVertexAttribute(VertexNormalBuffer, triangle, vertexA, barycentricCoordinate);
-                            MergeNormalVertexAttribute(VertexTangentBuffer, triangle, vertexA, barycentricCoordinate);
+                            
+                            if (Options.UseBarycentricCoordinateInterpolation)
+                            {
+                                MergeNormalVertexAttribute(VertexNormalBuffer, triangle, vertexA, barycentricCoordinate);
+                                MergeNormalVertexAttribute(VertexTangentBuffer, triangle, vertexA, barycentricCoordinate);
+                            }
+                            else
+                            {
+                                MergeNormalVertexAttribute(VertexNormalBuffer, vertexA, vertexB, lerpFactor);
+                                MergeNormalVertexAttribute(VertexTangentBuffer, vertexA, vertexB, lerpFactor);
+                            }
 
-                            MergeVectorVertexAttribute(VertexColorBuffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord0Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord1Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord2Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord3Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord4Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord5Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord6Buffer, triangle, vertexA, barycentricCoordinate);
-                            MergeVectorVertexAttribute(VertexTexCoord7Buffer, triangle, vertexA, barycentricCoordinate);
+                            if (Options.UseBarycentricCoordinateInterpolationForUV)
+                            {
+                                MergeVectorVertexAttribute(VertexColorBuffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord0Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord1Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord2Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord3Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord4Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord5Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord6Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeVectorVertexAttribute(VertexTexCoord7Buffer, triangle, vertexA, barycentricCoordinate);
+                                MergeBlendShapes(triangle, vertexA, barycentricCoordinate);
+                            }
+                            else
+                            {
+                                MergeVectorVertexAttribute(VertexColorBuffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord0Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord1Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord2Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord3Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord4Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord5Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord6Buffer, vertexA, vertexB, lerpFactor);
+                                MergeVectorVertexAttribute(VertexTexCoord7Buffer, vertexA, vertexB, lerpFactor);
+                                MergeBlendShapes(vertexA, vertexB, lerpFactor);
+                            }
 
 
                             MergeBlendWeightAndIndices(vertexA, vertexB, lerpFactor);
-
-                            MergeBlendShapes(triangle, vertexA, barycentricCoordinate);
                             return;
                         }
                     }

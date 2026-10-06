@@ -1,7 +1,7 @@
+#if ENABLE_VRCFURY
 using UnityEngine;
 
-
-namespace Meshia.MeshSimplification.Ndmf
+namespace Meshia.MeshSimplification
 {
     [AddComponentMenu("Meshia Mesh Simplification/Meshia Mesh Simplifier")]
     [DisallowMultipleComponent]
@@ -20,6 +20,5 @@ namespace Meshia.MeshSimplification.Ndmf
 
         void Start() { } // To show enabled checkbox in inspector
     }
-
 }
-
+#endif

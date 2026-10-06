@@ -2,7 +2,8 @@
     <ui:DropdownField label="Language" name="LanguagePicker" />
     <ui:Toggle label="Preserve Border Edges" binding-path="PreserveBorderEdges" />
     <ui:Toggle label="Preserve Surface Curvature" binding-path="PreserveSurfaceCurvature" />
-    <ui:Toggle label="Use Barycentric Coordinate Interpolation" binding-path="UseBarycentricCoordinateInterpolation" />
+    <ui:Toggle label="Use Barycentric Interpolation for Shading" binding-path="UseBarycentricCoordinateInterpolation" />
+    <ui:Toggle label="Use Barycentric Interpolation for UV &amp; Colors" binding-path="UseBarycentricCoordinateInterpolationForUV" />
     <ui:Slider label="Min Normal Dot" high-value="1" binding-path="MinNormalDot" low-value="-1" show-input-field="true" />
     <ui:Toggle label="Enable Smart Link" binding-path="EnableSmartLink" value="true" name="EnableSmartLinkToggle" />
     <ui:GroupBox text="Smart Link Options" name="SmartLinkOptionsGroup">
