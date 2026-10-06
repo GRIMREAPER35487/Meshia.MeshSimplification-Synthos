@@ -1,3 +1,9 @@
+<div align="center">
+  <img src="https://raw.githubusercontent.com/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/main/.github/banner.png" alt="Meshia Mesh Simplification (Synthos Edition)" width="100%" />
+</div>
+
+<br/>
+
 # Meshia Mesh Simplification (Synthos Edition)
 
 A high-performance, Burst-accelerated mesh decimation library for Unity and VRChat. 
