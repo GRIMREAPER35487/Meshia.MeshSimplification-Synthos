@@ -6,6 +6,11 @@
 
 # Meshia Mesh Simplification (Synthos Edition)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/GRIMREAPER35487/Meshia.MeshSimplification-Synthos)](https://github.com/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/releases/latest)
+[![GitHub Downloads (latest)](https://img.shields.io/github/downloads/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/latest/total?label=downloads%40latest)](https://github.com/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/releases/latest)
+[![GitHub Downloads (total)](https://img.shields.io/github/downloads/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/total?label=downloads%40total)](https://github.com/GRIMREAPER35487/Meshia.MeshSimplification-Synthos/releases)
+
 A high-performance, Burst-accelerated mesh decimation library for Unity and VRChat. 
 
 This repository is a customized edition of [Ram.Type-0's Meshia](https://github.com/RamType0/Meshia.MeshSimplification) (under the MIT License), tailored for **both Avatars and Worlds**. It runs standalone without requiring NDMF, integrates directly with tools like **VRCFury**, and powers batch environment processing in tools like **Synthos Scene Optimizer**.
