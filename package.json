@@ -1,7 +1,7 @@
 {
   "name": "com.synthos.meshia",
   "displayName": "Meshia Mesh Simplification (Synthos Edition)",
-  "version": "3.3.0-beta.1",
+  "version": "3.3.0",
   "unity": "2022.3",
   "description": "Burst-accelerated mesh simplification. Fork of RamType0's Meshia decoupled from NDMF for World/Scene optimization, VRCFury integration, and patched with independent UV barycentric interpolation.",
   "author": {
