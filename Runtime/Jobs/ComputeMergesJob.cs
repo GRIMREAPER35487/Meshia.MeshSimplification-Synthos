@@ -1,5 +1,6 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 namespace Meshia.MeshSimplification
@@ -28,6 +29,13 @@ namespace Meshia.MeshSimplification
         public NativeArray<VertexMerge> UnorderedDirtyVertexMerges;
         public bool PreserveBorderEdges;
         public bool PreserveSurfaceCurvature;
+        [ReadOnly]
+        public NativeArray<UnsafeList<float3>> BlendShapeDeltaVertices;
+        [ReadOnly]
+        public NativeArray<float> BlendShapeWeights;
+        [ReadOnly]
+        public NativeArray<ErrorQuadric> BlendShapeVertexErrorQuadrics;
+        public BlendShapeErrorMode BlendShapeErrorMode;
         public void Execute(int index)
         {
             var mergeFactory = new MergeFactory
@@ -41,6 +49,10 @@ namespace Meshia.MeshSimplification
                 PreserveSurfaceCurvature = PreserveSurfaceCurvature,
                 PreserveBorderEdgesBoneIndices = PreserveBorderEdgesBoneIndices,
                 VertexBlendIndicesBuffer = VertexBlendIndicesBuffer,
+                BlendShapeDeltaVertices = BlendShapeDeltaVertices,
+                BlendShapeWeights = BlendShapeWeights,
+                BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics,
+                BlendShapeErrorMode = BlendShapeErrorMode,
             };
             var edge = Edges[index];
             VertexMerge merge;

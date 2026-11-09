@@ -57,6 +57,12 @@ namespace Meshia.MeshSimplification
 
         NativeMinPriorityQueue<VertexMerge> VertexMerges;
 
+        // Blend shape aware error (PreserveBlendShapes). All empty when no blend shape is considered.
+        NativeList<UnsafeList<float3>> ErrorBlendShapeDeltaVertices;
+        NativeList<float> ErrorBlendShapeWeights;
+        NativeList<ErrorQuadric> BlendShapeVertexErrorQuadrics;
+        NativeList<float3> BlendShapeTriangleNormals;
+
         MeshSimplifierOptions Options;
 
         AllocatorManager.AllocatorHandle Allocator;
@@ -96,7 +102,7 @@ namespace Meshia.MeshSimplification
                 }
             }
 
-            var load = meshSimplifier.ScheduleLoadMeshData(originalMeshData, options);
+            var load = meshSimplifier.ScheduleLoadMeshDataWithoutPreservedBones(originalMeshData, blendShapes, default, options);
 
             var simplifiedMeshDataArray = Mesh.AllocateWritableMeshData(1);
             NativeList<BlendShapeData> simplifiedBlendShapes = new(allocator);
@@ -127,6 +133,16 @@ namespace Meshia.MeshSimplification
             => SimplifyBatch(parameters.Select<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, Mesh Destination), (Mesh, MeshSimplificationTarget, MeshSimplifierOptions, BitArray?, Mesh)>(p => (p.Mesh, p.Target, p.Options, null, p.Destination)).ToList());
 
         public static void SimplifyBatch(IReadOnlyList<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, BitArray? PreserveBorderEdgesBoneIndices, Mesh Destination)> parameters)
+            => SimplifyBatch(parameters.Select<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, BitArray? PreserveBorderEdgesBoneIndices, Mesh Destination), (Mesh, MeshSimplificationTarget, MeshSimplifierOptions, BitArray?, float[]?, Mesh)>(p => (p.Mesh, p.Target, p.Options, p.PreserveBorderEdgesBoneIndices, null, p.Destination)).ToList());
+
+        /// <summary>
+        /// Simplifies multiple meshes at once.
+        /// </summary>
+        /// <param name="parameters">
+        /// <c>BlendShapeWeights</c> is the importance multiplier of each blend shape of the mesh, used when <see cref="MeshSimplifierOptions.PreserveBlendShapes"/> is enabled.
+        /// A weight of 0 excludes the blend shape. <see langword="null"/> means every blend shape has weight 1.
+        /// </param>
+        public static void SimplifyBatch(IReadOnlyList<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, BitArray? PreserveBorderEdgesBoneIndices, float[]? BlendShapeWeights, Mesh Destination)> parameters)
         {
             Allocator allocator = Unity.Collections.Allocator.TempJob;
 
@@ -148,7 +164,7 @@ namespace Meshia.MeshSimplification
 
                 for (int i = 0; i < parameters.Count; i++)
                 {
-                    var (mesh, target, options, preserveBorderEdgesBoneIndices, destination) = parameters[i];
+                    var (mesh, target, options, preserveBorderEdgesBoneIndices, blendShapeWeights, destination) = parameters[i];
                     var originalMeshData = originalMeshDataArray[i];
                     var blendShapes = BlendShapeData.GetMeshBlendShapes(mesh, allocator);
                     blendShapesList[i] = blendShapes;
@@ -161,7 +177,12 @@ namespace Meshia.MeshSimplification
                             nativePreserveBorderEdgesBoneIndices.Set(boneIndex, preserveBorderEdgesBoneIndices[boneIndex]);
                         }
                     }
-                    var load = meshSimplifier.ScheduleLoadMeshData(originalMeshData, options);
+                    NativeArray<float> nativeBlendShapeWeights = blendShapeWeights is null ? default : new(blendShapeWeights, allocator);
+                    var load = meshSimplifier.ScheduleLoadMeshDataWithoutPreservedBones(originalMeshData, blendShapes, nativeBlendShapeWeights, options);
+                    if (nativeBlendShapeWeights.IsCreated)
+                    {
+                        nativeBlendShapeWeights.Dispose();
+                    }
                     NativeList<BlendShapeData> simplifiedBlendShapes = new(allocator);
                     simplifiedBlendShapesList[i] = simplifiedBlendShapes;
 
@@ -235,7 +256,7 @@ namespace Meshia.MeshSimplification
                 }
             }
 
-            var load = meshSimplifier.ScheduleLoadMeshData(originalMeshData, options, nativePreserveBorderEdgesBoneIndices);
+            var load = meshSimplifier.ScheduleLoadMeshData(originalMeshData, blendShapes, default, options, nativePreserveBorderEdgesBoneIndices);
 
             var simplifiedMeshDataArray = Mesh.AllocateWritableMeshData(1);
             NativeList<BlendShapeData> simplifiedBlendShapes = new(allocator);
@@ -374,6 +395,12 @@ namespace Meshia.MeshSimplification
             SmartLinks = new(0, allocator);
 
             VertexMerges = new(allocator);
+
+            ErrorBlendShapeDeltaVertices = new(allocator);
+            ErrorBlendShapeWeights = new(allocator);
+            BlendShapeVertexErrorQuadrics = new(allocator);
+            BlendShapeTriangleNormals = new(allocator);
+
             Options = default;
 
             Allocator = allocator;
@@ -404,6 +431,97 @@ namespace Meshia.MeshSimplification
          /// <param name="dependency">The handle of a job which the new job will depend upon.</param>
          /// <returns>The handle of a new job that will load mesh data from the <paramref name="meshData"/> into this <see cref="MeshSimplifier"/>.</returns>
         public JobHandle ScheduleLoadMeshData(Mesh.MeshData meshData, MeshSimplifierOptions options, NativeBitArray preserveBorderEdgesBoneIndices, JobHandle dependency = default)
+        {
+            ErrorBlendShapeDeltaVertices.Clear();
+            ErrorBlendShapeWeights.Clear();
+            return ScheduleLoadMeshDataCore(meshData, options, preserveBorderEdgesBoneIndices, dependency);
+        }
+
+        /// <summary>
+        /// Creates and schedules a job that will load mesh data from the <paramref name="meshData"/> into this <see cref="MeshSimplifier"/>,
+        /// taking <paramref name="blendShapes"/> into account when <see cref="MeshSimplifierOptions.PreserveBlendShapes"/> is enabled.
+        /// </summary>
+        /// <param name="meshData">The mesh data to load.</param>
+        /// <param name="blendShapes">The blend shapes of the <paramref name="meshData"/>. The same list must be passed to <see cref="ScheduleSimplify(Mesh.MeshData, NativeList{BlendShapeData}, MeshSimplificationTarget, NativeBitArray, JobHandle)"/>. It must be fully initialized.</param>
+        /// <param name="blendShapeWeights">Importance multiplier of each blend shape. 0 excludes the blend shape. If not created, every blend shape has weight 1.</param>
+        /// <param name="options">The options for this mesh simplification.</param>
+        /// <param name="preserveBorderEdgesBoneIndices">The bone indices whose border edges are preserved.</param>
+        /// <param name="dependency">The handle of a job which the new job will depend upon.</param>
+        public JobHandle ScheduleLoadMeshData(Mesh.MeshData meshData, NativeList<BlendShapeData> blendShapes, NativeArray<float> blendShapeWeights, MeshSimplifierOptions options, NativeBitArray preserveBorderEdgesBoneIndices, JobHandle dependency = default)
+        {
+            SelectErrorBlendShapes(blendShapes, blendShapeWeights, options);
+            return ScheduleLoadMeshDataCore(meshData, options, preserveBorderEdgesBoneIndices, dependency);
+        }
+
+        JobHandle ScheduleLoadMeshDataWithoutPreservedBones(Mesh.MeshData meshData, NativeList<BlendShapeData> blendShapes, NativeArray<float> blendShapeWeights, MeshSimplifierOptions options)
+        {
+            NativeBitArray preserveBorderEdgesBoneIndices = new(0, Allocator);
+            var jobHandle = ScheduleLoadMeshData(meshData, blendShapes, blendShapeWeights, options, preserveBorderEdgesBoneIndices);
+            preserveBorderEdgesBoneIndices.Dispose(jobHandle);
+            return jobHandle;
+        }
+
+        /// <summary>
+        /// Picks the blend shapes whose fully applied shape is taken into account by the error metric.
+        /// Runs on the main thread, <paramref name="blendShapes"/> must be ready.
+        /// </summary>
+        void SelectErrorBlendShapes(NativeList<BlendShapeData> blendShapes, NativeArray<float> blendShapeWeights, MeshSimplifierOptions options)
+        {
+            ErrorBlendShapeDeltaVertices.Clear();
+            ErrorBlendShapeWeights.Clear();
+            if (!options.PreserveBlendShapes || !blendShapes.IsCreated || blendShapes.Length == 0)
+            {
+                return;
+            }
+
+            var candidates = new List<(int ShapeIndex, float Weight, float Score)>();
+            for (int shapeIndex = 0; shapeIndex < blendShapes.Length; shapeIndex++)
+            {
+                var weight = blendShapeWeights.IsCreated ? (shapeIndex < blendShapeWeights.Length ? blendShapeWeights[shapeIndex] : 0f) : 1f;
+                if (!(weight > 0f))
+                {
+                    continue;
+                }
+                var frames = blendShapes[shapeIndex].Frames;
+                if (frames.Length == 0)
+                {
+                    continue;
+                }
+                // The last frame is the fully applied shape.
+                var deltaVertices = frames[frames.Length - 1].DeltaVertices;
+                var maxDeltaLengthSq = 0f;
+                for (int vertexIndex = 0; vertexIndex < deltaVertices.Length; vertexIndex++)
+                {
+                    maxDeltaLengthSq = math.max(maxDeltaLengthSq, math.lengthsq(deltaVertices[vertexIndex]));
+                }
+                if (maxDeltaLengthSq == 0f)
+                {
+                    continue;
+                }
+                candidates.Add((shapeIndex, weight, weight * math.sqrt(maxDeltaLengthSq)));
+            }
+
+            // Largest (weighted) deformation first, so a limit keeps the shapes that matter most.
+            candidates.Sort((a, b) => b.Score.CompareTo(a.Score));
+            var limit = options.MaxPreservedBlendShapes > 0 ? math.min(options.MaxPreservedBlendShapes, candidates.Count) : candidates.Count;
+
+            var selectedNames = new List<string>(limit);
+            for (int i = 0; i < limit; i++)
+            {
+                var (shapeIndex, weight, _) = candidates[i];
+                var blendShape = blendShapes[shapeIndex];
+                ErrorBlendShapeDeltaVertices.Add(blendShape.Frames[blendShape.Frames.Length - 1].DeltaVertices);
+                ErrorBlendShapeWeights.Add(weight);
+                selectedNames.Add(weight == 1f ? blendShape.Name.ConvertToString() : $"{blendShape.Name.ConvertToString()} (x{weight:0.##})");
+            }
+            if (limit != 0)
+            {
+                var skipped = candidates.Count - limit;
+                Debug.Log($"[Meshia] Preserving blend shape shapes: {string.Join(", ", selectedNames)}" + (skipped > 0 ? $" ({skipped} more skipped by the limit of {options.MaxPreservedBlendShapes})" : ""));
+            }
+        }
+
+        JobHandle ScheduleLoadMeshDataCore(Mesh.MeshData meshData, MeshSimplifierOptions options, NativeBitArray preserveBorderEdgesBoneIndices, JobHandle dependency)
         {
             Options = options;
             var constructVertexPositionBuffer = ScheduleCopyVertexPositionBuffer(meshData, dependency);
@@ -477,11 +595,13 @@ namespace Meshia.MeshSimplification
 
             var constructVertexErrorQuadrics = ScheduleInitializeVertexErrorQuadrics(meshData, edges, triangleErrorQuadrics, dependency, constructVertexPositionBuffer, constructTriangles, constructVertexContainingTrianglesAndTriangleDiscardedBits, constructEdges, constructTriangleNormalsAndErrorQuadrics);
 
-            edges.Dispose(JobHandle.CombineDependencies(constructMergePairs, constructVertexIsBorderEdgeBits, constructVertexErrorQuadrics));
+            var constructBlendShapeErrorQuadrics = ScheduleInitializeBlendShapeErrorQuadrics(meshData, edges, dependency, constructVertexPositionBuffer, constructTriangles, constructVertexContainingTrianglesAndTriangleDiscardedBits, constructEdges);
+
+            edges.Dispose(stackalloc[] { constructMergePairs, constructVertexIsBorderEdgeBits, constructVertexErrorQuadrics, constructBlendShapeErrorQuadrics }.CombineDependencies());
 
             triangleErrorQuadrics.Dispose(constructVertexErrorQuadrics);
 
-            var constructVertexMerges = ScheduleInitializeVertexMerges(mergePairs, preserveBorderEdgesBoneIndices, constructVertexPositionBuffer, constructVertexBlendIndicesBuffer, constructVertexErrorQuadrics, constructTriangleNormalsAndErrorQuadrics, constructVertexContainingTrianglesAndTriangleDiscardedBits, constructVertexIsBorderEdgeBits, constructMergePairs);
+            var constructVertexMerges = ScheduleInitializeVertexMerges(mergePairs, preserveBorderEdgesBoneIndices, constructVertexPositionBuffer, constructVertexBlendIndicesBuffer, JobHandle.CombineDependencies(constructVertexErrorQuadrics, constructBlendShapeErrorQuadrics), constructTriangleNormalsAndErrorQuadrics, constructVertexContainingTrianglesAndTriangleDiscardedBits, constructVertexIsBorderEdgeBits, constructMergePairs);
 
             mergePairs.Dispose(constructVertexMerges);
 
@@ -524,6 +644,8 @@ namespace Meshia.MeshSimplification
 
                 collectSmartLinks,
                 constructVertexMerges,
+
+                constructBlendShapeErrorQuadrics,
 
             }.CombineDependencies();
 
@@ -594,6 +716,10 @@ namespace Meshia.MeshSimplification
                 VertexMerges = VertexMerges,
                 PreserveBorderEdgesBoneIndices = preserveBorderEdgesBoneIndices,
                 SmartLinks = SmartLinks,
+                BlendShapeDeltaVertices = ErrorBlendShapeDeltaVertices.AsDeferredJobArray(),
+                BlendShapeWeights = ErrorBlendShapeWeights.AsDeferredJobArray(),
+                BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics.AsDeferredJobArray(),
+                BlendShapeTriangleNormals = BlendShapeTriangleNormals.AsDeferredJobArray(),
             }.Schedule(dependency);
         }
 
@@ -679,6 +805,10 @@ namespace Meshia.MeshSimplification
                 TriangleIsDiscardedBits.Dispose (inputDeps),
                 SmartLinks.Dispose(inputDeps),
                 VertexMerges.Dispose(inputDeps),
+                ErrorBlendShapeDeltaVertices.Dispose(inputDeps),
+                ErrorBlendShapeWeights.Dispose(inputDeps),
+                BlendShapeVertexErrorQuadrics.Dispose(inputDeps),
+                BlendShapeTriangleNormals.Dispose(inputDeps),
             }.CombineDependencies();
         }
         /// <summary>
@@ -717,6 +847,10 @@ namespace Meshia.MeshSimplification
             TriangleIsDiscardedBits.Dispose();
             SmartLinks.Dispose();
             VertexMerges.Dispose();
+            ErrorBlendShapeDeltaVertices.Dispose();
+            ErrorBlendShapeWeights.Dispose();
+            BlendShapeVertexErrorQuadrics.Dispose();
+            BlendShapeTriangleNormals.Dispose();
         }
 
 
@@ -995,6 +1129,69 @@ namespace Meshia.MeshSimplification
 
             return computeVertexErrorQuadricsJob;
         }
+        JobHandle ScheduleInitializeBlendShapeErrorQuadrics(
+            Mesh.MeshData mesh,
+            NativeHashSet<int2> edges,
+            JobHandle meshDependency,
+            JobHandle vertexPositionBufferDependency,
+            JobHandle trianglesDependency,
+            JobHandle vertexContainingTrianglesDependency,
+            JobHandle edgesDependency)
+        {
+            var blendShapeCount = ErrorBlendShapeWeights.Length;
+            if (blendShapeCount == 0)
+            {
+                BlendShapeVertexErrorQuadrics.Clear();
+                BlendShapeTriangleNormals.Clear();
+                return default;
+            }
+
+            NativeList<ErrorQuadric> blendShapeTriangleErrorQuadrics = new(Allocator);
+            var initializeBuffers = new InitializeBlendShapeErrorBuffersJob
+            {
+                MeshData = mesh,
+                BlendShapeCount = blendShapeCount,
+                BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics,
+                BlendShapeTriangleNormals = BlendShapeTriangleNormals,
+                BlendShapeTriangleErrorQuadrics = blendShapeTriangleErrorQuadrics,
+            }.Schedule(meshDependency);
+
+            var computeTriangles = new ComputeBlendShapeTriangleNormalsAndErrorQuadricsJob
+            {
+                VertexPositionBuffer = VertexPositionBuffer.AsDeferredJobArray(),
+                Triangles = Triangles.AsDeferredJobArray(),
+                BlendShapeDeltaVertices = ErrorBlendShapeDeltaVertices.AsDeferredJobArray(),
+                BlendShapeTriangleNormals = BlendShapeTriangleNormals.AsDeferredJobArray(),
+                BlendShapeTriangleErrorQuadrics = blendShapeTriangleErrorQuadrics.AsDeferredJobArray(),
+            }.Schedule(Triangles, JobsUtility.CacheLineSize,
+            stackalloc[]
+            {
+                initializeBuffers,
+                vertexPositionBufferDependency,
+                trianglesDependency,
+            }.CombineDependencies());
+
+            var computeVertices = new ComputeBlendShapeVertexErrorQuadricsJob
+            {
+                VertexPositionBuffer = VertexPositionBuffer.AsDeferredJobArray(),
+                Triangles = Triangles.AsDeferredJobArray(),
+                VertexContainingTriangles = VertexContainingTriangles,
+                Edges = edges,
+                BlendShapeDeltaVertices = ErrorBlendShapeDeltaVertices.AsDeferredJobArray(),
+                BlendShapeTriangleErrorQuadrics = blendShapeTriangleErrorQuadrics.AsDeferredJobArray(),
+                BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics.AsDeferredJobArray(),
+            }.Schedule(VertexPositionBuffer, JobsUtility.CacheLineSize,
+            stackalloc[]
+            {
+                computeTriangles,
+                vertexContainingTrianglesDependency,
+                edgesDependency,
+            }.CombineDependencies());
+
+            blendShapeTriangleErrorQuadrics.Dispose(computeVertices);
+            return computeVertices;
+        }
+
         JobHandle ScheduleInitializeVertexMerges(
             NativeList<int2> edges,
             NativeBitArray preserveBorderEdgesBoneIndices,
@@ -1027,6 +1224,10 @@ namespace Meshia.MeshSimplification
                 PreserveSurfaceCurvature = Options.PreserveSurfaceCurvature,
                 VertexBlendIndicesBuffer = VertexBlendIndicesBuffer.AsDeferredJobArray(),
                 PreserveBorderEdgesBoneIndices = preserveBorderEdgesBoneIndices,
+                BlendShapeDeltaVertices = ErrorBlendShapeDeltaVertices.AsDeferredJobArray(),
+                BlendShapeWeights = ErrorBlendShapeWeights.AsDeferredJobArray(),
+                BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics.AsDeferredJobArray(),
+                BlendShapeErrorMode = Options.BlendShapeErrorMode,
             }.Schedule(edges, JobsUtility.CacheLineSize,
             stackalloc[]
             {

@@ -17,6 +17,14 @@ namespace Meshia.MeshSimplification
         public bool PreserveBorderEdges;
         public bool PreserveSurfaceCurvature;
 
+        /// <summary>Delta vertices of each considered blend shape (fully applied frame). Empty when blend shapes are not considered.</summary>
+        public NativeArray<UnsafeList<float3>> BlendShapeDeltaVertices;
+        /// <summary>Importance multiplier of each considered blend shape.</summary>
+        public NativeArray<float> BlendShapeWeights;
+        /// <summary>Vertex error quadrics of each considered blend shape, indexed by shape * vertexCount + vertex.</summary>
+        public NativeArray<ErrorQuadric> BlendShapeVertexErrorQuadrics;
+        public BlendShapeErrorMode BlendShapeErrorMode;
+
         PreservedVertexPredicator PreservedVertexPredicator => new()
         {
             VertexBlendIndicesBuffer = VertexBlendIndicesBuffer,
@@ -120,12 +128,36 @@ namespace Meshia.MeshSimplification
                 vertexError = q.ComputeError(position);
 
             ApplyCurvatureError:
+                if (BlendShapeWeights.Length != 0)
+                {
+                    vertexError = CombineBlendShapeErrors(vertices, position, vertexError);
+                }
                 var curvatureError = PreserveSurfaceCurvature ? ComputeCurvatureError(vertices) : 0;
 
                 cost = vertexError + curvatureError;
                 return true;
             }
 
+        }
+        readonly float CombineBlendShapeErrors(int2 vertices, float3 position, float baseError)
+        {
+            var vertexCount = VertexPositionBuffer.Length;
+            var positionX = VertexPositionBuffer[vertices.x];
+            var positionY = VertexPositionBuffer[vertices.y];
+            var xy = positionY - positionX;
+            var lengthSq = math.lengthsq(xy);
+            // Same interpolation factor as the one used for merging vertex attributes (and blend shape deltas).
+            var lerpFactor = lengthSq > 0 ? math.saturate(math.dot(xy, position - positionX) / lengthSq) : 0f;
+            var combined = baseError;
+            for (int shape = 0; shape < BlendShapeWeights.Length; shape++)
+            {
+                var deltas = BlendShapeDeltaVertices[shape];
+                var shapePosition = position + math.lerp(deltas[vertices.x], deltas[vertices.y], lerpFactor);
+                var q = BlendShapeVertexErrorQuadrics[shape * vertexCount + vertices.x] + BlendShapeVertexErrorQuadrics[shape * vertexCount + vertices.y];
+                var error = math.max(0f, q.ComputeError(shapePosition)) * BlendShapeWeights[shape];
+                combined = BlendShapeErrorMode == BlendShapeErrorMode.WeightedSum ? combined + error : math.max(combined, error);
+            }
+            return combined;
         }
         float ComputeCurvatureError(int2 vertices)
         {

@@ -60,6 +60,12 @@ namespace Meshia.MeshSimplification
 
         public NativeArray<float3> TriangleNormals;
         public NativeHashSet<int2> SmartLinks;
+
+        /// <summary>Delta vertices of each considered blend shape. These alias the frames in <see cref="BlendShapes"/>, so merges keep them up to date.</summary>
+        public NativeArray<UnsafeList<float3>> BlendShapeDeltaVertices;
+        public NativeArray<float> BlendShapeWeights;
+        public NativeArray<ErrorQuadric> BlendShapeVertexErrorQuadrics;
+        public NativeArray<float3> BlendShapeTriangleNormals;
         [ReadOnly]
 
         public Mesh.MeshData Mesh;
@@ -79,7 +85,10 @@ namespace Meshia.MeshSimplification
             PreserveBorderEdgesBoneIndices = PreserveBorderEdgesBoneIndices,
             PreserveBorderEdges = Options.PreserveBorderEdges,
             PreserveSurfaceCurvature = Options.PreserveSurfaceCurvature,
-
+            BlendShapeDeltaVertices = BlendShapeDeltaVertices,
+            BlendShapeWeights = BlendShapeWeights,
+            BlendShapeVertexErrorQuadrics = BlendShapeVertexErrorQuadrics,
+            BlendShapeErrorMode = Options.BlendShapeErrorMode,
         };
 
         PreservedVertexPredicator PreservedVertexPredicator => new()
@@ -223,7 +232,71 @@ namespace Meshia.MeshSimplification
             {
                 return false;
             }
+            if (BlendShapeWeights.Length != 0)
+            {
+                var a = VertexPositionBuffer[vertexA];
+                var ab = VertexPositionBuffer[vertexB] - a;
+                var lengthSq = math.lengthsq(ab);
+                var lerpFactor = lengthSq > 0 ? math.saturate(math.dot(ab, merge.Position - a) / lengthSq) : 0f;
+                for (int shape = 0; shape < BlendShapeWeights.Length; shape++)
+                {
+                    if (WillMakeBlendShapeContainingTriangleFlipped(merge, shape, lerpFactor, vertexA, vertexB))
+                    {
+                        return false;
+                    }
+                    if (WillMakeBlendShapeContainingTriangleFlipped(merge, shape, lerpFactor, vertexB, vertexA))
+                    {
+                        return false;
+                    }
+                }
+            }
             return true;
+        }
+
+        readonly bool WillMakeBlendShapeContainingTriangleFlipped(VertexMerge merge, int shape, float lerpFactor, int vertex, int opponentVertex)
+        {
+            var deltas = BlendShapeDeltaVertices[shape];
+            var triangleCount = Triangles.Length;
+            var mergedDelta = math.lerp(deltas[merge.VertexAIndex], deltas[merge.VertexBIndex], lerpFactor);
+            var mergedPosition = merge.Position + mergedDelta;
+            foreach (var triangleIndex in VertexContainingTriangles.GetValuesForKey(vertex))
+            {
+                var triangle = Triangles[triangleIndex];
+
+                if (math.any(triangle == opponentVertex))
+                {
+                    continue;
+                }
+                int vertex1, vertex2;
+
+                if (triangle.x == vertex)
+                {
+                    vertex1 = triangle.y;
+                    vertex2 = triangle.z;
+                }
+                else if (triangle.y == vertex)
+                {
+                    vertex1 = triangle.z;
+                    vertex2 = triangle.x;
+                }
+                else
+                {
+                    vertex1 = triangle.x;
+                    vertex2 = triangle.y;
+                }
+                var p1 = VertexPositionBuffer[vertex1] + deltas[vertex1];
+                var p2 = VertexPositionBuffer[vertex2] + deltas[vertex2];
+
+                var originalTriangleNormal = BlendShapeTriangleNormals[shape * triangleCount + triangleIndex];
+                var triangleNormalAfterMerge = math.normalize(math.cross(p1 - mergedPosition, p2 - mergedPosition));
+                var dot = math.dot(originalTriangleNormal, triangleNormalAfterMerge);
+
+                if (dot < Options.MinNormalDot)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private readonly bool HasValidVersion(VertexMerge merge)
@@ -339,6 +412,10 @@ namespace Meshia.MeshSimplification
 
 
                 VertexErrorQuadrics.ElementAt(vertexA) += VertexErrorQuadrics[vertexB];
+                for (int shape = 0, vertexCount = VertexPositionBuffer.Length; shape < BlendShapeWeights.Length; shape++)
+                {
+                    BlendShapeVertexErrorQuadrics.ElementAt(shape * vertexCount + vertexA) += BlendShapeVertexErrorQuadrics[shape * vertexCount + vertexB];
+                }
 
                 VertexVersions.ElementAt(vertexA)++;
 
@@ -551,7 +628,6 @@ namespace Meshia.MeshSimplification
                                 MergeVectorVertexAttribute(VertexTexCoord5Buffer, triangle, vertexA, barycentricCoordinate);
                                 MergeVectorVertexAttribute(VertexTexCoord6Buffer, triangle, vertexA, barycentricCoordinate);
                                 MergeVectorVertexAttribute(VertexTexCoord7Buffer, triangle, vertexA, barycentricCoordinate);
-                                MergeBlendShapes(triangle, vertexA, barycentricCoordinate);
                             }
                             else
                             {
@@ -564,6 +640,26 @@ namespace Meshia.MeshSimplification
                                 MergeVectorVertexAttribute(VertexTexCoord5Buffer, vertexA, vertexB, lerpFactor);
                                 MergeVectorVertexAttribute(VertexTexCoord6Buffer, vertexA, vertexB, lerpFactor);
                                 MergeVectorVertexAttribute(VertexTexCoord7Buffer, vertexA, vertexB, lerpFactor);
+                            }
+
+                            if (Options.PreserveBlendShapes)
+                            {
+                                // Interpolate deltas the same way as the vertex normals are.
+                                if (Options.UseBarycentricCoordinateInterpolation || Options.UseBarycentricCoordinateInterpolationForUV)
+                                {
+                                    MergeBlendShapeDeltas(triangle, vertexA, barycentricCoordinate);
+                                }
+                                else
+                                {
+                                    MergeBlendShapeDeltas(vertexA, vertexB, lerpFactor);
+                                }
+                            }
+                            else if (Options.UseBarycentricCoordinateInterpolationForUV)
+                            {
+                                MergeBlendShapes(triangle, vertexA, barycentricCoordinate);
+                            }
+                            else
+                            {
                                 MergeBlendShapes(vertexA, vertexB, lerpFactor);
                             }
 
@@ -594,7 +690,14 @@ namespace Meshia.MeshSimplification
 
                     MergeBlendWeightAndIndices(vertexA, vertexB, lerpFactor);
 
-                    MergeBlendShapes(vertexA, vertexB, lerpFactor);
+                    if (Options.PreserveBlendShapes)
+                    {
+                        MergeBlendShapeDeltas(vertexA, vertexB, lerpFactor);
+                    }
+                    else
+                    {
+                        MergeBlendShapes(vertexA, vertexB, lerpFactor);
+                    }
                 }
             }
 
@@ -704,6 +807,45 @@ namespace Meshia.MeshSimplification
                     deltaTangents[destinationVertex] = math.normalizesafe(deltaTangents[triangle.x] * barycentricCoordinate.x + deltaTangents[triangle.y] * barycentricCoordinate.y + deltaTangents[triangle.z] * barycentricCoordinate.z);
 
 
+                }
+            }
+        }
+
+        // Blend shape deltas are offsets, not unit vectors: they must be interpolated linearly without normalization.
+        // The legacy MergeBlendShapes normalizes delta normals/tangents, which inflates small deltas to unit length.
+        // It is kept as is so results with PreserveBlendShapes disabled do not change.
+        void MergeBlendShapeDeltas(int vertexA, int vertexB, float lerpFactor)
+        {
+            for (int shapeIndex = 0; shapeIndex < BlendShapes.Length; shapeIndex++)
+            {
+                var frames = BlendShapes[shapeIndex].Frames;
+                for (int frameIndex = 0; frameIndex < frames.Length; frameIndex++)
+                {
+                    var frame = frames[frameIndex];
+                    var deltaVertices = frame.DeltaVertices;
+                    var deltaNormals = frame.DeltaNormals;
+                    var deltaTangents = frame.DeltaTangents;
+                    deltaVertices[vertexA] = math.lerp(deltaVertices[vertexA], deltaVertices[vertexB], lerpFactor);
+                    deltaNormals[vertexA] = math.lerp(deltaNormals[vertexA], deltaNormals[vertexB], lerpFactor);
+                    deltaTangents[vertexA] = math.lerp(deltaTangents[vertexA], deltaTangents[vertexB], lerpFactor);
+                }
+            }
+        }
+
+        void MergeBlendShapeDeltas(int3 triangle, int destinationVertex, float3 barycentricCoordinate)
+        {
+            for (int shapeIndex = 0; shapeIndex < BlendShapes.Length; shapeIndex++)
+            {
+                var frames = BlendShapes[shapeIndex].Frames;
+                for (int frameIndex = 0; frameIndex < frames.Length; frameIndex++)
+                {
+                    var frame = frames[frameIndex];
+                    var deltaVertices = frame.DeltaVertices;
+                    var deltaNormals = frame.DeltaNormals;
+                    var deltaTangents = frame.DeltaTangents;
+                    deltaVertices[destinationVertex] = deltaVertices[triangle.x] * barycentricCoordinate.x + deltaVertices[triangle.y] * barycentricCoordinate.y + deltaVertices[triangle.z] * barycentricCoordinate.z;
+                    deltaNormals[destinationVertex] = deltaNormals[triangle.x] * barycentricCoordinate.x + deltaNormals[triangle.y] * barycentricCoordinate.y + deltaNormals[triangle.z] * barycentricCoordinate.z;
+                    deltaTangents[destinationVertex] = deltaTangents[triangle.x] * barycentricCoordinate.x + deltaTangents[triangle.y] * barycentricCoordinate.y + deltaTangents[triangle.z] * barycentricCoordinate.z;
                 }
             }
         }

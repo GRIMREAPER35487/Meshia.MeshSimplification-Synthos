@@ -13,5 +13,9 @@
         <ui:Toggle name="OptionsToggle" style="align-self: center;" />
     </ui:VisualElement>
     <uie:PropertyField binding-path="Options" name="OptionsField" style="display: none;" />
+    <ui:Foldout text="Blendshape Settings" name="BlendShapeSettingsFoldout" value="false" style="display: none;" tooltip="Used when Preserve Blendshape Shapes is enabled. Auto = considered if animated or non-zero on the renderer.">
+        <ui:Button text="Add Blendshapes From Mesh" name="AddBlendShapesFromMeshButton" />
+        <uie:PropertyField binding-path="BlendShapeSettings" name="BlendShapeSettingsField" />
+    </ui:Foldout>
     <ui:Foldout text="Preserve Border Edges Bones" name="PreserveBorderEdgesBonesFoldout" value="false" style="display: none;" />
 </ui:UXML>

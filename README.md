@@ -34,6 +34,12 @@ This repository is a customized edition of [Ram.Type-0's Meshia](https://github.
 4. **Batch Scene & World Processing Support**
    - Optimized for multi-mesh scene decimation jobs via `MeshSimplifier.SimplifyBatch()`, allowing world optimization pipelines to decimate entire scenes in seconds.
 
+5. **Blendshape-Aware Simplification (`PreserveBlendShapes`, off by default)**
+   - **In Stock Meshia:** The error metric only measures the base shape, so regions that are flat in the base mesh but deform under a blendshape (e.g. a stocking stretched over the thigh) get heavily decimated and shade blotchy when the blendshape is on. Merged vertices also get their blendshape delta normals/tangents normalized to unit length.
+   - **In Synthos Edition:** With **Preserve Blendshape Shapes** enabled, every removal is also scored with each considered blendshape fully applied (combined with the base error by **Max** or **Weighted Sum**), triangle flips are checked in each shape, and deltas are interpolated without normalization.
+   - Only blendshapes that matter are considered: on avatar builds, a blendshape is used when it is animated by any controller on the avatar or non-zero on the renderer (Meshia runs after VRCFury, so shapes baked by VRCFury's Blendshape Optimizer are already gone). **Max Blendshapes** (default 8) caps the count, largest deformation first. Each cascading entry has **Blendshape Settings** to force Include/Exclude a shape or lower its weight.
+   - The triangle target is still always reached; with many deforming shapes the remaining error is spread across all of them.
+
 ---
 
 ## What Is No Longer Needed?

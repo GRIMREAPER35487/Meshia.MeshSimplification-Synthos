@@ -33,7 +33,8 @@ namespace Meshia.MeshSimplification.Editor
         {
             // 1. Find MeshiaMeshSimplifier components
             var meshiaMeshSimplifiers = avatarRoot.GetComponentsInChildren<MeshiaMeshSimplifier>(true);
-            var parameters = new List<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, BitArray? preserveBorderEdgesBoneIndices, Mesh Destination)>();
+            var parameters = new List<(Mesh Mesh, MeshSimplificationTarget Target, MeshSimplifierOptions Options, BitArray? preserveBorderEdgesBoneIndices, float[]? BlendShapeWeights, Mesh Destination)>();
+            MeshiaBlendShapeUsage? blendShapeUsage = null;
 
             foreach (var meshiaMeshSimplifier in meshiaMeshSimplifiers)
             {
@@ -41,7 +42,13 @@ namespace Meshia.MeshSimplification.Editor
                 {
                     var sourceMesh = RendererUtility.GetRequiredMesh(renderer);
                     Mesh simplifiedMesh = new();
-                    parameters.Add((sourceMesh, meshiaMeshSimplifier.target, meshiaMeshSimplifier.options, null, simplifiedMesh));
+                    float[]? blendShapeWeights = null;
+                    if (meshiaMeshSimplifier.options.PreserveBlendShapes)
+                    {
+                        blendShapeUsage ??= new MeshiaBlendShapeUsage(avatarRoot);
+                        blendShapeWeights = blendShapeUsage.GetBlendShapeWeights(renderer, sourceMesh, meshiaMeshSimplifier.options, null);
+                    }
+                    parameters.Add((sourceMesh, meshiaMeshSimplifier.target, meshiaMeshSimplifier.options, null, blendShapeWeights, simplifiedMesh));
                 }
             }
 
@@ -58,7 +65,14 @@ namespace Meshia.MeshSimplification.Editor
 
                     var preserveBorderEdgesBoneIndices = MeshiaCascadingAvatarMeshSimplifier.GetPreserveBorderEdgesBoneIndices(avatarRoot, cascadingMeshSimplifier, entry);
 
-                    parameters.Add((mesh, target, entry.Options, preserveBorderEdgesBoneIndices, simplifiedMesh));
+                    float[]? blendShapeWeights = null;
+                    if (entry.Options.PreserveBlendShapes)
+                    {
+                        blendShapeUsage ??= new MeshiaBlendShapeUsage(avatarRoot);
+                        blendShapeWeights = blendShapeUsage.GetBlendShapeWeights(entry.TargetRenderer, mesh, entry.Options, entry.BlendShapeSettings);
+                    }
+
+                    parameters.Add((mesh, target, entry.Options, preserveBorderEdgesBoneIndices, blendShapeWeights, simplifiedMesh));
                 }
             }
 
@@ -82,7 +96,7 @@ namespace Meshia.MeshSimplification.Editor
             {
                 if (meshiaMeshSimplifier.enabled && meshiaMeshSimplifier.TryGetComponent<Renderer>(out var renderer))
                 {
-                    var (_, _, _, _, simplifiedMesh) = parameters[i++];
+                    var (_, _, _, _, _, simplifiedMesh) = parameters[i++];
                     if (saveToDisk)
                     {
                         var path = $"Assets/MeshiaTemp/Mesh_{Guid.NewGuid():N}.asset";
@@ -97,7 +111,7 @@ namespace Meshia.MeshSimplification.Editor
                 foreach (var entry in cascadingMeshSimplifier.Entries)
                 {
                     if (entry.TargetRenderer == null || !entry.Enabled) continue;
-                    var (_, _, _, _, simplifiedMesh) = parameters[i++];
+                    var (_, _, _, _, _, simplifiedMesh) = parameters[i++];
                     if (saveToDisk)
                     {
                         var path = $"Assets/MeshiaTemp/Mesh_{Guid.NewGuid():N}.asset";

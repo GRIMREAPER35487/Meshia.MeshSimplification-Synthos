@@ -330,7 +330,31 @@ namespace Meshia.MeshSimplification.Editor
                     var optionsToggle = itemRoot.Q<Toggle>("OptionsToggle");
                     var optionsField = itemRoot.Q<PropertyField>("OptionsField");
                     var preserveBorderEdgesBonesFoldout = itemRoot.Q<Foldout>("PreserveBorderEdgesBonesFoldout");
-                    
+                    var blendShapeSettingsFoldout = itemRoot.Q<Foldout>("BlendShapeSettingsFoldout");
+                    var addBlendShapesFromMeshButton = itemRoot.Q<Button>("AddBlendShapesFromMeshButton");
+
+                    if (addBlendShapesFromMeshButton != null)
+                    {
+                        addBlendShapesFromMeshButton.clicked += () =>
+                        {
+                            if (itemRoot.userData is not int itemIndex || itemIndex >= Target.Entries.Count) return;
+                            var entry = Target.Entries[itemIndex];
+                            var mesh = entry.TargetRenderer != null ? RendererUtility.GetMesh(entry.TargetRenderer) : null;
+                            if (mesh == null) return;
+                            Undo.RecordObject(Target, "Add Blendshapes From Mesh");
+                            for (int shapeIndex = 0; shapeIndex < mesh.blendShapeCount; shapeIndex++)
+                            {
+                                var name = mesh.GetBlendShapeName(shapeIndex);
+                                if (!entry.BlendShapeSettings.Any(setting => setting.Name == name))
+                                {
+                                    entry.BlendShapeSettings.Add(new MeshiaBlendShapeSetting { Name = name });
+                                }
+                            }
+                            EditorUtility.SetDirty(Target);
+                            serializedObject.Update();
+                        };
+                    }
+
                     if (enabledToggle != null)
                     {
                         enabledToggle.RegisterValueChangedCallback(changeEvent =>
@@ -383,6 +407,7 @@ namespace Meshia.MeshSimplification.Editor
                         {
                             if (optionsField != null) optionsField.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
                             if (preserveBorderEdgesBonesFoldout != null) preserveBorderEdgesBonesFoldout.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+                            if (blendShapeSettingsFoldout != null) blendShapeSettingsFoldout.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
                         });
                     }
 

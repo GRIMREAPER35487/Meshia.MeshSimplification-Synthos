@@ -142,6 +142,26 @@ namespace Meshia.MeshSimplification
         }
     }
 
+    public enum MeshiaBlendShapeMode
+    {
+        /// <summary>Considered if it is animated or currently non-zero on the renderer.</summary>
+        Auto,
+        /// <summary>Always considered.</summary>
+        Include,
+        /// <summary>Never considered.</summary>
+        Exclude,
+    }
+
+    [Serializable]
+    public class MeshiaBlendShapeSetting
+    {
+        public string Name = "";
+        public MeshiaBlendShapeMode Mode = MeshiaBlendShapeMode.Auto;
+        [Tooltip("Multiplier of this blend shape's error. Lower it for rarely used shapes.")]
+        [Min(0)]
+        public float Weight = 1f;
+    }
+
     [Serializable]
     public record MeshiaCascadingAvatarMeshSimplifierRendererEntry
     {
@@ -183,6 +203,11 @@ namespace Meshia.MeshSimplification
             (1ul << (int)HumanBodyBones.RightLittleDistal);
         public bool Enabled = true;
         public bool Fixed = false;
+        /// <summary>
+        /// Per blend shape settings used when <see cref="MeshSimplifierOptions.PreserveBlendShapes"/> is enabled.
+        /// Blend shapes not listed here use <see cref="MeshiaBlendShapeMode.Auto"/> with weight 1.
+        /// </summary>
+        public List<MeshiaBlendShapeSetting> BlendShapeSettings = new();
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         [Obsolete("For serialization only", true)]

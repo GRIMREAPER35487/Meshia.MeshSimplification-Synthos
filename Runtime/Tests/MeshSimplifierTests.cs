@@ -123,6 +123,97 @@ namespace Meshia.MeshSimplification.Tests
             Object.Destroy(mesh);
             Object.Destroy(simplifiedMesh);
         }
+
+        // A flat grid whose center bulges only under a blend shape.
+        static Mesh CreateGridWithBumpBlendShape(int resolution)
+        {
+            var vertices = new List<Vector3>();
+            var deltas = new List<Vector3>();
+            var triangles = new List<int>();
+            for (int y = 0; y <= resolution; y++)
+            {
+                for (int x = 0; x <= resolution; x++)
+                {
+                    var u = (float)x / resolution - 0.5f;
+                    var v = (float)y / resolution - 0.5f;
+                    vertices.Add(new Vector3(u, 0, v));
+                    var r2 = (u * u + v * v) / 0.04f;
+                    deltas.Add(new Vector3(0, 0.2f * Mathf.Exp(-r2), 0));
+                }
+            }
+            for (int y = 0; y < resolution; y++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    int i = y * (resolution + 1) + x;
+                    triangles.AddRange(new[] { i, i + resolution + 1, i + 1, i + 1, i + resolution + 1, i + resolution + 2 });
+                }
+            }
+            var mesh = new Mesh();
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.AddBlendShapeFrame("Bump", 100, deltas.ToArray(), null, null);
+            return mesh;
+        }
+
+        static int CountVerticesInBump(Mesh mesh)
+        {
+            var count = 0;
+            foreach (var vertex in mesh.vertices)
+            {
+                if (new Vector2(vertex.x, vertex.z).magnitude < 0.2f) count++;
+            }
+            return count;
+        }
+
+        [Test]
+        public void PreserveBlendShapesKeepsDensityWhereBlendShapeDeforms()
+        {
+            var mesh = CreateGridWithBumpBlendShape(40);
+            MeshSimplificationTarget target = new() { Kind = MeshSimplificationTargetKind.RelativeTriangleCount, Value = 0.3f };
+
+            var baseOptions = MeshSimplifierOptions.Default;
+            baseOptions.PreserveBorderEdges = false;
+            var off = new Mesh();
+            MeshSimplifier.Simplify(mesh, target, baseOptions, off);
+
+            var onOptions = baseOptions;
+            onOptions.PreserveBlendShapes = true;
+            var on = new Mesh();
+            MeshSimplifier.Simplify(mesh, target, onOptions, on);
+
+            Assert.AreEqual(1, on.blendShapeCount);
+            Assert.LessOrEqual(on.triangles.Length / 3, mesh.triangles.Length / 3 * 0.3f + 1);
+            Assert.Greater(CountVerticesInBump(on), CountVerticesInBump(off), "Blend shape aware error should keep more vertices where the blend shape deforms.");
+
+            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(off);
+            Object.DestroyImmediate(on);
+        }
+
+        [Test]
+        public void PreserveBlendShapesWithZeroWeightMatchesDisabled()
+        {
+            var mesh = CreateGridWithBumpBlendShape(20);
+            MeshSimplificationTarget target = new() { Kind = MeshSimplificationTargetKind.RelativeTriangleCount, Value = 0.5f };
+            var options = MeshSimplifierOptions.Default;
+            var off = new Mesh();
+            MeshSimplifier.SimplifyBatch(new List<(Mesh, MeshSimplificationTarget, MeshSimplifierOptions, System.Collections.BitArray, float[], Mesh)> { (mesh, target, options, null, null, off) });
+
+            // Every blend shape excluded: the error metric is the same as with the option disabled.
+            // (Delta normals are interpolated differently, so compare geometry only.)
+            options.PreserveBlendShapes = true;
+            var excluded = new Mesh();
+            MeshSimplifier.SimplifyBatch(new List<(Mesh, MeshSimplificationTarget, MeshSimplifierOptions, System.Collections.BitArray, float[], Mesh)> { (mesh, target, options, null, new[] { 0f }, excluded) });
+
+            CollectionAssert.AreEqual(off.vertices, excluded.vertices);
+            CollectionAssert.AreEqual(off.triangles, excluded.triangles);
+
+            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(off);
+            Object.DestroyImmediate(excluded);
+        }
     }
 
 }

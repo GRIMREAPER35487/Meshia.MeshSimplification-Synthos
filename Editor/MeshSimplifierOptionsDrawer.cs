@@ -29,6 +29,17 @@ namespace Meshia.MeshSimplification.Editor
 
             var resetOptionsButton = root.Q<Button>("ResetOptionsButton");
 
+            var preserveBlendShapesToggle = root.Q<Toggle>("PreserveBlendShapesToggle");
+            var blendShapeOptionsGroup = root.Q<GroupBox>("BlendShapeOptionsGroup");
+            if (preserveBlendShapesToggle != null && blendShapeOptionsGroup != null)
+            {
+                blendShapeOptionsGroup.style.display = property.FindPropertyRelative(nameof(MeshSimplifierOptions.PreserveBlendShapes)).boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+                preserveBlendShapesToggle.RegisterValueChangedCallback(changeEvent =>
+                {
+                    blendShapeOptionsGroup.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+                });
+            }
+
             if (enableSmartLinkToggle != null && smartLinkOptionsGroup != null)
             {
                 enableSmartLinkToggle.RegisterValueChangedCallback(changeEvent =>

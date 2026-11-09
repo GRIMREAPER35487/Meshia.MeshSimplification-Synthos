@@ -12,5 +12,10 @@
         <ui:FloatField label="Vertex Link Color Distance" value="0.01" binding-path="VertexLinkColorDistance" />
         <ui:Slider label="Vertex Link UV Distance" high-value="1.414214" binding-path="VertexLinkUvDistance" low-value="0" show-input-field="true" />
     </ui:GroupBox>
+    <ui:Toggle label="Preserve Blendshape Shapes" binding-path="PreserveBlendShapes" name="PreserveBlendShapesToggle" tooltip="Also measure removal error with each animated (or active) blend shape fully applied, so regions that deform under a blend shape keep their density." />
+    <ui:GroupBox text="Blendshape Options" name="BlendShapeOptionsGroup">
+        <uie:EnumField label="Blendshape Error Mode" binding-path="BlendShapeErrorMode" type="Meshia.MeshSimplification.BlendShapeErrorMode, Meshia.MeshSimplification.Runtime" tooltip="Max: a removal is only cheap if it is cheap in every shape. Weighted Sum: errors of all shapes are added up." />
+        <ui:IntegerField label="Max Blendshapes" binding-path="MaxPreservedBlendShapes" tooltip="Maximum number of blend shapes considered (largest deformation first). 0 = no limit." />
+    </ui:GroupBox>
     <ui:Button text="Reset Options" parse-escape-sequences="true" display-tooltip-when-elided="true" name="ResetOptionsButton" enable-rich-text="false" />
 </ui:UXML>

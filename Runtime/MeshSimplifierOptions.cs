@@ -22,6 +22,9 @@ namespace Meshia.MeshSimplification
             VertexLinkMinNormalDot = 0.95f,
             VertexLinkColorDistance = 0.01f,
             VertexLinkUvDistance = 0.001f,
+            PreserveBlendShapes = false,
+            BlendShapeErrorMode = BlendShapeErrorMode.Max,
+            MaxPreservedBlendShapes = 8,
         };
 
         /// <summary>
@@ -59,6 +62,24 @@ namespace Meshia.MeshSimplification
         [Range(0, 1.41421356237f)]
         public float VertexLinkUvDistance;
 
+        /// <summary>
+        /// If this option is enabled, the error of each removal is also measured on the mesh with each considered blend shape fully applied,
+        /// so regions that are flat in the base mesh but deform under a blend shape keep their density. <br/>
+        /// Also fixes blend shape delta normal/tangent interpolation on merged vertices.
+        /// </summary>
+        [Tooltip("Also measure removal error with each considered blend shape fully applied, so regions that deform under a blend shape keep their density.")]
+        public bool PreserveBlendShapes;
+        /// <summary>
+        /// How the per blend shape errors are combined with the base shape error.
+        /// </summary>
+        [Tooltip("Max: a removal is only cheap if it is cheap in every shape. Weighted Sum: errors of all shapes are added up.")]
+        public BlendShapeErrorMode BlendShapeErrorMode;
+        /// <summary>
+        /// The maximum number of blend shapes that are considered. 0 means no limit.
+        /// </summary>
+        [Tooltip("The maximum number of blend shapes that are considered (largest deformation first). 0 means no limit.")]
+        public int MaxPreservedBlendShapes;
+
 
         public readonly override bool Equals(object obj)
         {
@@ -76,7 +97,10 @@ namespace Meshia.MeshSimplification
                    VertexLinkDistance == other.VertexLinkDistance &&
                    VertexLinkMinNormalDot == other.VertexLinkMinNormalDot &&
                    VertexLinkColorDistance == other.VertexLinkColorDistance &&
-                   VertexLinkUvDistance == other.VertexLinkUvDistance;
+                   VertexLinkUvDistance == other.VertexLinkUvDistance &&
+                   PreserveBlendShapes == other.PreserveBlendShapes &&
+                   BlendShapeErrorMode == other.BlendShapeErrorMode &&
+                   MaxPreservedBlendShapes == other.MaxPreservedBlendShapes;
         }
 
         public readonly override int GetHashCode()
@@ -93,5 +117,13 @@ namespace Meshia.MeshSimplification
         {
             return !(left == right);
         }
+    }
+
+    public enum BlendShapeErrorMode
+    {
+        /// <summary>The cost of a removal is the maximum of the base error and each weighted blend shape error.</summary>
+        Max,
+        /// <summary>The cost of a removal is the base error plus the sum of the weighted blend shape errors.</summary>
+        WeightedSum,
     }
 }
