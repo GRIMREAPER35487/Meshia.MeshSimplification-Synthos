@@ -21,7 +21,9 @@ namespace Meshia.MeshSimplification
         public int TargetTriangleCount = 70000;
         public bool AutoAdjustEnabled = true;
         public bool AccountForBase = false;
-        
+        [Tooltip("Distribute the budget by simplification error: meshes that lose little detail per removed triangle are reduced first, instead of reducing every mesh by the same percentage.")]
+        public bool SmartAllocation = true;
+
         public void RefreshEntries()
         {
             using (ListPool<Renderer>.Get(out var ownedRenderers))
@@ -203,6 +205,10 @@ namespace Meshia.MeshSimplification
             (1ul << (int)HumanBodyBones.RightLittleDistal);
         public bool Enabled = true;
         public bool Fixed = false;
+        /// <summary>Importance multiplier used by smart allocation. Higher keeps more triangles on this mesh.</summary>
+        [Tooltip("Smart Allocation importance. Higher keeps more triangles on this mesh (e.g. 2-4 for face/hair), lower lets it be reduced first (e.g. 0.25 for clothing hidden under other clothing).")]
+        [Min(0)]
+        public float Priority = 1f;
         /// <summary>
         /// Per blend shape settings used when <see cref="MeshSimplifierOptions.PreserveBlendShapes"/> is enabled.
         /// Blend shapes not listed here use <see cref="MeshiaBlendShapeMode.Auto"/> with weight 1.

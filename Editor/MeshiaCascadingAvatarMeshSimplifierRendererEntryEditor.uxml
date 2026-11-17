@@ -12,6 +12,7 @@
         <ui:Toggle name="FixedToggle" binding-path="Fixed" style="align-self: center;" />
         <ui:Toggle name="OptionsToggle" style="align-self: center;" />
     </ui:VisualElement>
+    <ui:FloatField label="Priority" binding-path="Priority" name="PriorityField" style="display: none;" tooltip="Smart Allocation importance. Higher keeps more triangles on this mesh (e.g. 2-4 for face/hair), lower lets it be reduced first (e.g. 0.25 for clothing hidden under other clothing)." />
     <uie:PropertyField binding-path="Options" name="OptionsField" style="display: none;" />
     <ui:Foldout text="Blendshape Settings" name="BlendShapeSettingsFoldout" value="false" style="display: none;" tooltip="Used when Preserve Blendshape Shapes is enabled. Auto = considered if animated or non-zero on the renderer.">
         <ui:Button text="Add Blendshapes From Mesh" name="AddBlendShapesFromMeshButton" />

@@ -172,6 +172,22 @@ namespace Meshia.MeshSimplification.Editor
                 });
             }
 
+            var smartAllocationToggle = root.Q<Toggle>("SmartAllocationToggle");
+            if (smartAllocationToggle != null)
+            {
+                smartAllocationToggle.RegisterValueChangedCallback(changeEvent =>
+                {
+                    if (changeEvent.newValue == changeEvent.previousValue) return;
+                    serializedObject.FindProperty(nameof(MeshiaCascadingAvatarMeshSimplifier.SmartAllocation)).boolValue = changeEvent.newValue;
+                    serializedObject.ApplyModifiedProperties();
+                    if (AutoAdjustEnabledProperty.boolValue)
+                    {
+                        AdjustQuality();
+                        serializedObject.ApplyModifiedProperties();
+                    }
+                });
+            }
+
             if (triangleCountLabel != null)
             {
                 triangleCountLabel.onGUIHandler = () =>
@@ -340,6 +356,7 @@ namespace Meshia.MeshSimplification.Editor
                     var triangleCountDivider = itemRoot.Q<Label>("TriangleCountDivider");
                     var optionsToggle = itemRoot.Q<Toggle>("OptionsToggle");
                     var optionsField = itemRoot.Q<PropertyField>("OptionsField");
+                    var priorityField = itemRoot.Q<FloatField>("PriorityField");
                     var preserveBorderEdgesBonesFoldout = itemRoot.Q<Foldout>("PreserveBorderEdgesBonesFoldout");
                     var blendShapeSettingsFoldout = itemRoot.Q<Foldout>("BlendShapeSettingsFoldout");
                     var addBlendShapesFromMeshButton = itemRoot.Q<Button>("AddBlendShapesFromMeshButton");
@@ -420,11 +437,30 @@ namespace Meshia.MeshSimplification.Editor
                         });
                     }
 
+                    if (priorityField != null)
+                    {
+                        priorityField.RegisterValueChangedCallback(changeEvent =>
+                        {
+                            if (itemRoot.userData is not int itemIndex || itemIndex >= Target.Entries.Count) return;
+                            var newValue = Mathf.Max(0f, changeEvent.newValue);
+                            if (Mathf.Approximately(Target.Entries[itemIndex].Priority, newValue)) return;
+                            serializedObject.Update();
+                            EntriesProperty.GetArrayElementAtIndex(itemIndex).FindPropertyRelative(nameof(MeshiaCascadingAvatarMeshSimplifierRendererEntry.Priority)).floatValue = newValue;
+                            serializedObject.ApplyModifiedProperties();
+                            if (AutoAdjustEnabledProperty.boolValue && Target.SmartAllocation)
+                            {
+                                AdjustQuality();
+                                serializedObject.ApplyModifiedProperties();
+                            }
+                        });
+                    }
+
                     if (optionsToggle != null)
                     {
                         optionsToggle.RegisterValueChangedCallback(changeEvent =>
                         {
                             if (optionsField != null) optionsField.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+                            if (priorityField != null) priorityField.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
                             if (preserveBorderEdgesBonesFoldout != null) preserveBorderEdgesBonesFoldout.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
                             if (blendShapeSettingsFoldout != null) blendShapeSettingsFoldout.style.display = changeEvent.newValue ? DisplayStyle.Flex : DisplayStyle.None;
                         });
@@ -604,6 +640,32 @@ namespace Meshia.MeshSimplification.Editor
             var entriesProperty = EntriesProperty;
 
             Undo.RecordObject(target, "Adjust Quality");
+
+            if (target.SmartAllocation)
+            {
+                var adjustableIndices = new List<int>();
+                var lockedTotal = 0;
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    var entry = entries[i];
+                    if (!entry.IsValid(target)) continue;
+                    if (entry.Enabled && !entry.Fixed && i != fixedIndex)
+                    {
+                        adjustableIndices.Add(i);
+                    }
+                    else
+                    {
+                        TryGetSimplifiedTriangleCount(entry, false, out var triangleCount);
+                        lockedTotal += triangleCount;
+                    }
+                }
+                if (adjustableIndices.Count == 0 || MeshiaSmartAllocator.Allocate(target, adjustableIndices, targetBudget - lockedTotal))
+                {
+                    serializedObject.Update();
+                    return;
+                }
+                // Fall back to proportional scaling if the error curves could not be computed.
+            }
 
             for (int iteration = 0; iteration < 5; iteration++)
             {

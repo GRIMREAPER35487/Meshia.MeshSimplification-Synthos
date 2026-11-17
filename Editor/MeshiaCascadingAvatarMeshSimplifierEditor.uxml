@@ -9,6 +9,7 @@
             <ui:Button text="Adjust" parse-escape-sequences="true" display-tooltip-when-elided="true" enable-rich-text="false" name="AdjustButton" />
             <ui:Toggle label="Enable Auto Adjust" binding-path="AutoAdjustEnabled" name="AutoAdjustEnabledToggle" />
             <ui:Toggle label="Account for Base" binding-path="AccountForBase" name="AccountForBaseToggle" tooltip="Calculates the triangle count of all other renderers on the avatar and subtracts it from your target count to find the remaining budget for these clothes." />
+            <ui:Toggle label="Smart Allocation" binding-path="SmartAllocation" name="SmartAllocationToggle" tooltip="Distribute the budget by simplification error: meshes that lose little detail per removed triangle are reduced first, instead of reducing every mesh by the same percentage. Set per-mesh Priority under the gear icon." />
         </ui:GroupBox>
         <ui:GroupBox style="flex-direction: row; justify-content: space-between; display: flex;">
             <ui:IMGUIContainer name="TriangleCountLabel" />
