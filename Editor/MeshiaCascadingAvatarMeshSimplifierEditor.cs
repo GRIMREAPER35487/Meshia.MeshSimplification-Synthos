@@ -216,7 +216,11 @@ namespace Meshia.MeshSimplification.Editor
                 {
                     var originalTriangleCount = GetTotalOriginalTriangleCount();
 
-                    var quality = TargetTriangleCountProperty.intValue / (float)originalTriangleCount;
+                    // Cap at 1: a budget larger than the managed meshes must not push entries past their own triangle count
+                    // (sliders would clamp and fire change events that pin a random entry during auto adjust).
+                    var quality = originalTriangleCount > 0
+                        ? Mathf.Min(1f, TargetTriangleCountProperty.intValue / (float)originalTriangleCount)
+                        : 1f;
 
                     var entriesProperty = EntriesProperty;
                     var arraySize = entriesProperty.arraySize;
@@ -229,6 +233,13 @@ namespace Meshia.MeshSimplification.Editor
 
                     SetQualityAll(quality);
                     serializedObject.ApplyModifiedProperties();
+
+                    // Re-fit to the real budget (including Account for Base) with no entry pinned.
+                    if (AutoAdjustEnabledProperty.boolValue)
+                    {
+                        AdjustQuality();
+                        serializedObject.ApplyModifiedProperties();
+                    }
                 };
             }
 
@@ -395,6 +406,14 @@ namespace Meshia.MeshSimplification.Editor
                         {
                             if (itemRoot.userData is int itemIndex && AutoAdjustEnabledProperty.boolValue)
                             {
+                                // Ignore events caused by the slider clamping a stored value above the mesh's
+                                // triangle count; only a real drag should pin this entry.
+                                if (itemIndex < Target.Entries.Count
+                                    && TryGetOriginalTriangleCount(Target.Entries[itemIndex], false, out var maxTriangleCount)
+                                    && Target.Entries[itemIndex].TargetTriangleCount > maxTriangleCount)
+                                {
+                                    return;
+                                }
                                 AdjustQuality(itemIndex);
                                 serializedObject.ApplyModifiedProperties();
                             }
