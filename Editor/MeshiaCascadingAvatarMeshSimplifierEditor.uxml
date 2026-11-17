@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
-    <ui:HelpBox name="AttachedToRootWarning" message-type="Warning" text="This component should not be attached to root GameObject." style="display: none;" />
+    <ui:HelpBox name="AttachedToRootWarning" message-type="Warning" text="This component should not be attached to root GameObject unless there are meshes below it." style="display: none;" />
     <ui:VisualElement name="MainElement" style="flex-grow: 1;">
         <ui:GroupBox style="flex-direction: row;">
             <ui:IntegerField label="Target Triangle Count" value="70000" name="TargetTriangleCountField" binding-path="TargetTriangleCount" />
@@ -14,6 +14,7 @@
         <ui:GroupBox style="flex-direction: row; justify-content: space-between; display: flex;">
             <ui:IMGUIContainer name="TriangleCountLabel" />
             <ui:GroupBox style="flex-direction: row;">
+                <ui:Toggle label="Lock Entries" binding-path="LockEntries" name="LockEntriesToggle" tooltip="Keep exactly the meshes listed below. When off, opening this inspector adds meshes under this simplifier and removes meshes outside it or owned by another simplifier." style="align-self: center;" />
                 <ui:Button text="Remove Invalid Entries" parse-escape-sequences="true" display-tooltip-when-elided="true" name="RemoveInvalidEntriesButton" />
                 <ui:Button text="Reset" parse-escape-sequences="true" display-tooltip-when-elided="true" name="ResetButton" />
             </ui:GroupBox>

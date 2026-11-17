@@ -24,11 +24,25 @@ namespace Meshia.MeshSimplification
         [Tooltip("Distribute the budget by simplification error: meshes that lose little detail per removed triangle are reduced first, instead of reducing every mesh by the same percentage.")]
         public bool SmartAllocation = true;
 
+        [Tooltip("Lock the renderer list. Entries are never added or removed automatically, so this simplifier keeps exactly the meshes it has now.")]
+        public bool LockEntries = false;
+
+        /// <summary>
+        /// Makes the entries match the renderers this simplifier owns: adds new ones and removes entries whose renderer is
+        /// outside its scope or owned by another simplifier. Entries with a missing renderer are kept (see Remove Invalid Entries).
+        /// Does nothing when <see cref="LockEntries"/> is set.
+        /// </summary>
         public void RefreshEntries()
         {
+            if (LockEntries) return;
             using (ListPool<Renderer>.Get(out var ownedRenderers))
             {
                 GetOwnedRenderers(ownedRenderers);
+                var owned = new HashSet<Renderer>(ownedRenderers);
+
+                // Cross-talk cleanup: drop entries for renderers this simplifier does not own.
+                Entries.RemoveAll(entry => entry.TargetRenderer != null && !owned.Contains(entry.TargetRenderer));
+
                 var currentEntries = Entries.Select(t => t.TargetRenderer);
                 var addedEntries = ownedRenderers.Except(currentEntries).Where(MeshiaCascadingAvatarMeshSimplifierRendererEntry.IsValidTarget).Select(renderer => new MeshiaCascadingAvatarMeshSimplifierRendererEntry(renderer!)).ToArray();
 
@@ -36,81 +50,62 @@ namespace Meshia.MeshSimplification
             }
         }
 
+        /// <summary>
+        /// The root of the hierarchy this simplifier manages. On an object that has meshes below it (e.g. an outfit root)
+        /// that is the object itself; on a dedicated empty object it is the parent.
+        /// </summary>
+        public Transform? GetScopeOrigin()
+        {
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer is MeshRenderer or SkinnedMeshRenderer)
+                {
+                    return transform;
+                }
+            }
+            return transform.parent;
+        }
+
+        /// <summary>Whether <paramref name="renderer"/> is in this simplifier's scope and not in a nested scope of another simplifier.</summary>
+        public bool Owns(Renderer renderer, IReadOnlyCollection<Transform> otherScopeOrigins)
+        {
+            var origin = GetScopeOrigin();
+            if (origin == null || !renderer.transform.IsChildOf(origin)) return false;
+            for (var current = renderer.transform; current != origin; current = current.parent)
+            {
+                if (otherScopeOrigins.Contains(current)) return false;
+            }
+            return true;
+        }
+
         private void GetOwnedRenderers(List<Renderer> ownedRenderers)
         {
-            var myScopeOrigin = transform.parent;
+            var myScopeOrigin = GetScopeOrigin();
 
-            if(myScopeOrigin == null)
+            if (myScopeOrigin == null)
             {
                 throw new InvalidOperationException($"{nameof(MeshiaCascadingAvatarMeshSimplifier)} should not be attached to root GameObject.");
             }
-            using (ListPool<MeshiaCascadingAvatarMeshSimplifier>.Get(out var childSimplifiers))
-            using (HashSetPool<Transform>.Get(out var otherScopeOrigins))
+
+            // Look at every simplifier on the avatar, including ones on inactive outfits, so ownership does not depend on what is toggled on.
+            var otherScopeOrigins = new HashSet<Transform>();
+            foreach (var other in myScopeOrigin.root.GetComponentsInChildren<MeshiaCascadingAvatarMeshSimplifier>(true))
             {
-                myScopeOrigin.gameObject.GetComponentsInChildren(childSimplifiers);
-                foreach (var childSimplifier in childSimplifiers)
+                if (other == this) continue;
+                var otherScopeOrigin = other.GetScopeOrigin();
+                if (otherScopeOrigin == null) continue;
+                if (otherScopeOrigin == myScopeOrigin)
                 {
-                    if (childSimplifier != this)
-                    {
-                        var otherScopeOrigin = childSimplifier.transform.parent;
-                        if(otherScopeOrigin == myScopeOrigin)
-                        {
-                            throw new InvalidOperationException($"Multiple {nameof(MeshiaCascadingAvatarMeshSimplifier)} is attached to direct children of GameObject. This is not allowed.");
-                        }
-                        otherScopeOrigins.Add(otherScopeOrigin);
-                    }
+                    throw new InvalidOperationException($"Multiple {nameof(MeshiaCascadingAvatarMeshSimplifier)} manage the same object '{myScopeOrigin.name}'. Put each one on its own outfit (or on its own child object).");
                 }
+                otherScopeOrigins.Add(otherScopeOrigin);
+            }
 
-                using (ListPool<Renderer>.Get(out var childRenderers))
+            foreach (var childRenderer in myScopeOrigin.GetComponentsInChildren<Renderer>(true))
+            {
+                if (childRenderer is MeshRenderer or SkinnedMeshRenderer && Owns(childRenderer, otherScopeOrigins))
                 {
-                    myScopeOrigin.gameObject.GetComponentsInChildren(childRenderers);
-                    for (int i = 0; i < childRenderers.Count;)
-                    {
-                        Renderer? childRenderer = childRenderers[i];
-
-                        if (childRenderer is MeshRenderer or SkinnedMeshRenderer)
-                        {
-                            i++;
-                        }
-                        else
-                        {
-                            childRenderers[i] = childRenderers[^1];
-                            childRenderers.RemoveAt(childRenderers.Count - 1);
-                        }
-                    }
-                    if (otherScopeOrigins.Count != 0)
-                    {
-                        for (int i = 0; i < childRenderers.Count;)
-                        {
-                            Renderer? childRenderer = childRenderers[i];
-                            if (IsOwnedByThis(childRenderer))
-                            {
-                                i++;
-                            }
-                            else
-                            {
-                                childRenderers[i] = childRenderers[^1];
-                                childRenderers.RemoveAt(childRenderers.Count - 1);
-                            }
-                            bool IsOwnedByThis(Renderer childRenderer)
-                            {
-                                var currentTransform = childRenderer.transform;
-                                while (currentTransform != myScopeOrigin)
-                                {
-                                    if (otherScopeOrigins.Contains(currentTransform))
-                                    {
-                                        return false;
-                                    }
-                                    else
-                                    {
-                                        currentTransform = currentTransform.parent;
-                                    }
-                                }
-                                return true;
-                            }
-                        }
-                    }
-                    ownedRenderers.AddRange(childRenderers);
+                    ownedRenderers.Add(childRenderer);
                 }
             }
         }

@@ -4,6 +4,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDKBase.Editor.BuildPipeline;
@@ -12,6 +13,47 @@ namespace Meshia.MeshSimplification.Editor
 {
     public class MeshiaVrcfuryBuildHook : IVRCSDKPreprocessAvatarCallback
     {
+        /// <summary>
+        /// Enabled entries with a renderer. A renderer listed by several simplifiers is simplified once: by the simplifier
+        /// that owns it (nearest scope), otherwise by the first one, with a warning.
+        /// </summary>
+        static List<(MeshiaCascadingAvatarMeshSimplifier Simplifier, MeshiaCascadingAvatarMeshSimplifierRendererEntry Entry)> SelectCascadingEntries(MeshiaCascadingAvatarMeshSimplifier[] simplifiers)
+        {
+            var candidates = new List<(MeshiaCascadingAvatarMeshSimplifier Simplifier, MeshiaCascadingAvatarMeshSimplifierRendererEntry Entry)>();
+            foreach (var simplifier in simplifiers)
+            {
+                foreach (var entry in simplifier.Entries)
+                {
+                    if (entry.TargetRenderer == null || !entry.Enabled) continue;
+                    candidates.Add((simplifier, entry));
+                }
+            }
+
+            var origins = new Dictionary<MeshiaCascadingAvatarMeshSimplifier, Transform?>();
+            foreach (var simplifier in simplifiers) origins[simplifier] = simplifier.GetScopeOrigin();
+
+            var winners = new Dictionary<Renderer, (MeshiaCascadingAvatarMeshSimplifier Simplifier, MeshiaCascadingAvatarMeshSimplifierRendererEntry Entry)>();
+            foreach (var group in candidates.GroupBy(c => c.Entry.TargetRenderer!))
+            {
+                var claims = group.ToList();
+                if (claims.Count == 1)
+                {
+                    winners[group.Key] = claims[0];
+                    continue;
+                }
+                var owner = claims.FirstOrDefault(c =>
+                {
+                    var others = new HashSet<Transform>(origins.Where(o => o.Key != c.Simplifier && o.Value != null).Select(o => o.Value!));
+                    return c.Simplifier.Owns(group.Key, others);
+                });
+                var winner = owner.Simplifier != null ? owner : claims[0];
+                winners[group.Key] = winner;
+                Debug.LogWarning($"[Meshia] '{group.Key.name}' is listed by {claims.Count} cascading simplifiers ({string.Join(", ", claims.Select(c => c.Simplifier.name))}). Only '{winner.Simplifier.name}' is applied. Remove it from the others or unlock them and reopen their inspector.", group.Key);
+            }
+            // Entries are records (value equality), so compare by reference.
+            return candidates.Where(c => ReferenceEquals(winners[c.Entry.TargetRenderer!].Entry, c.Entry)).ToList();
+        }
+
         // VRCFury runs at callbackOrder -10000.
         // We run at 10000 so we execute after VRCFury has merged everything, but before editor-only components are deleted.
         public int callbackOrder => 10000;
@@ -54,11 +96,10 @@ namespace Meshia.MeshSimplification.Editor
 
             // 2. Find MeshiaCascadingAvatarMeshSimplifier components
             var meshiaCascadingMeshSimplifiers = avatarRoot.GetComponentsInChildren<MeshiaCascadingAvatarMeshSimplifier>(true);
-            foreach (var cascadingMeshSimplifier in meshiaCascadingMeshSimplifiers)
+            var cascadingEntries = SelectCascadingEntries(meshiaCascadingMeshSimplifiers);
+            foreach (var (cascadingMeshSimplifier, entry) in cascadingEntries)
             {
-                foreach (var entry in cascadingMeshSimplifier.Entries)
                 {
-                    if (entry.TargetRenderer == null || !entry.Enabled) continue;
                     var mesh = RendererUtility.GetRequiredMesh(entry.TargetRenderer);
                     var target = new MeshSimplificationTarget() { Kind = MeshSimplificationTargetKind.AbsoluteTriangleCount, Value = entry.TargetTriangleCount };
                     Mesh simplifiedMesh = new();
@@ -106,11 +147,9 @@ namespace Meshia.MeshSimplification.Editor
                 }
             }
 
-            foreach (var cascadingMeshSimplifier in meshiaCascadingMeshSimplifiers)
+            foreach (var (_, entry) in cascadingEntries)
             {
-                foreach (var entry in cascadingMeshSimplifier.Entries)
                 {
-                    if (entry.TargetRenderer == null || !entry.Enabled) continue;
                     var (_, _, _, _, _, simplifiedMesh) = parameters[i++];
                     if (saveToDisk)
                     {

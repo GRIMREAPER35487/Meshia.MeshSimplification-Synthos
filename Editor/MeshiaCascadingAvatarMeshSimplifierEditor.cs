@@ -40,7 +40,7 @@ namespace Meshia.MeshSimplification.Editor
 
         private void RefreshEntries()
         {
-            if(Target.transform.parent == null)
+            if (Target.LockEntries || Target.GetScopeOrigin() == null)
             {
                 return;
             }
@@ -101,7 +101,7 @@ namespace Meshia.MeshSimplification.Editor
 
             if (attachedToRootWarning != null)
             {
-                attachedToRootWarning.style.display = Target.transform.parent == null ? DisplayStyle.Flex : DisplayStyle.None;
+                attachedToRootWarning.style.display = Target.GetScopeOrigin() == null ? DisplayStyle.Flex : DisplayStyle.None;
             }
 
             if (targetTriangleCountField != null)
@@ -168,6 +168,27 @@ namespace Meshia.MeshSimplification.Editor
                     {
                         AdjustQuality();
                         serializedObject.ApplyModifiedProperties();
+                    }
+                });
+            }
+
+            var lockEntriesToggle = root.Q<Toggle>("LockEntriesToggle");
+            if (lockEntriesToggle != null)
+            {
+                lockEntriesToggle.RegisterValueChangedCallback(changeEvent =>
+                {
+                    if (changeEvent.newValue == changeEvent.previousValue) return;
+                    serializedObject.FindProperty(nameof(MeshiaCascadingAvatarMeshSimplifier.LockEntries)).boolValue = changeEvent.newValue;
+                    serializedObject.ApplyModifiedProperties();
+                    if (!changeEvent.newValue)
+                    {
+                        // Unlocking: pick up owned meshes and drop ones outside this scope or owned by another simplifier.
+                        RefreshEntries();
+                        if (AutoAdjustEnabledProperty.boolValue)
+                        {
+                            AdjustQuality();
+                            serializedObject.ApplyModifiedProperties();
+                        }
                     }
                 });
             }
